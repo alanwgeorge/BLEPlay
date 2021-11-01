@@ -3,54 +3,78 @@ package com.alangeorge.bleplay
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Column
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.alangeorge.bleplay.ui.MainViewModel
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import com.alangeorge.bleplay.ui.ScreenOne
+import com.alangeorge.bleplay.ui.StartBottomBar
+import com.alangeorge.bleplay.ui.StartScreens
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
+import com.google.accompanist.insets.ProvideWindowInsets
+import com.google.accompanist.insets.systemBarsPadding
 import dagger.hilt.android.AndroidEntryPoint
-import timber.log.Timber
+import kotlinx.coroutines.flow.asStateFlow
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        lifecycle.addObserver(viewModels<MainViewModel>().value)
-
         setContent {
-            BLEPlayTheme {
-                Surface(color = MaterialTheme.colors.background) {
-                    val viewModel: MainViewModel = viewModel()
-                    val name by viewModel.title.observeAsState()
-                    val number by viewModel.data.observeAsState()
-
-                    Greeting(name ?: "default", number ?: -1)
+            ProvideWindowInsets {
+                BLEPlayTheme {
+                    val appState = rememberAppState()
+                    val currentRoute by appState.currentRoute.collectAsState()
+                    Scaffold(
+                        bottomBar = {
+                            StartBottomBar(
+                                navigateToRoute = appState.navController::navigate,
+                                items = appState.bottomBarTabs,
+                                currentRoute = currentRoute
+                            )
+                        },
+                        snackbarHost = {
+                            SnackbarHost(
+                                hostState = it,
+                                modifier = Modifier.systemBarsPadding(),
+                                snackbar = { snackbarData ->
+                                    Snackbar(snackbarData)
+                                }
+                            )
+                        },
+                        scaffoldState = appState.scaffoldState
+                    ) { innerPaddingModifier ->
+                        NavHost(
+                            navController = appState.navController,
+                            startDestination = StartScreens.ScreenOne.route,
+                            modifier = Modifier.padding(innerPaddingModifier)
+                        ) {
+                            navGraph()
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-@Composable
-fun Greeting(name: String, number: Int) {
-    Column {
-        Text(text = "Hello $name!")
-        Text(text = "Your new number is $number")
+fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier) {
+    composable(StartScreens.ScreenOne.route) {
+        ScreenOne()
+    }
+    composable(StartScreens.ScreenTwo.route) {
+        Text("ScreenTwo")
+    }
+    composable(StartScreens.ScreenThree.route) {
+        Text("ScreenThree")
+    }
+    composable(StartScreens.ScreenFour.route) {
+        Text("ScreenFour")
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    BLEPlayTheme {
-        Greeting("Android", 4)
-    }
-}

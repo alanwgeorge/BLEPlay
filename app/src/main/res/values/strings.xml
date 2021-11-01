@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">BLE Play</string>
+    <string name="test_snakebar">Test snackbar message</string>
+    <string name="home_one">One</string>
+    <string name="home_two">Two</string>
+    <string name="home_three">Three</string>
+    <string name="home_four">Four</string>
 </resources>

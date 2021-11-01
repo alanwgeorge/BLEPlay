@@ -1,6 +1,9 @@
 package com.alangeorge.bleplay.ui
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.*
+import com.alangeorge.bleplay.common.Pipeline
+import com.alangeorge.bleplay.model.SnackbarMessage
 import com.alangeorge.bleplay.repository.BleOperationRequest
 import com.alangeorge.bleplay.repository.BleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -12,36 +15,39 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val repository: BleRepository
-) : ViewModel(), LifecycleEventObserver {
+    private val repository: BleRepository,
+    private val snackbarMessagePipeline: Pipeline<SnackbarMessage>
+) : ViewModel() {
+    init {
+        viewModelScope.launch {
+            repository.bleOperation(BleOperationRequest(1)).fold(
+                {
+                    Timber.d("[${Thread.currentThread().name}] repository result $it")
+                    _title.postValue(it.result)
+                },
+                {
+                    Timber.e(it, "repository error")
+                }
+            )
+            repository.events.collect {
+                _data.postValue(it)
+            }
+        }
+    }
+
     private val _title = MutableLiveData<String>()
     val title: LiveData<String> = _title
     private val _data = MutableLiveData<Int>()
     val data: LiveData<Int> = _data
 
-    override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
-        when(event) {
-            Lifecycle.Event.ON_CREATE -> {
-                source.lifecycle.addObserver(repository)
-                source.lifecycleScope.launch(Dispatchers.IO) {
-                    repository.bleOperation(BleOperationRequest(1)).fold(
-                        {
-                            Timber.d("[${Thread.currentThread().name}] repository result $it")
-                            _title.postValue(it.result)
-                        },
-                        {
-                            Timber.e(it, "repository error")
-                        }
-                    )
-                }
-
-                source.lifecycleScope.launch {
-                    repository.events.collect {
-                        _data.postValue(it)
-                    }
-                }
-            }
-            else -> {}
+    fun displaySnackbar(@StringRes messageId: Int) {
+        viewModelScope.launch {
+            snackbarMessagePipeline.produceEvent(SnackbarMessage(messageId))
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        Timber.d("onCleared()")
     }
 }
