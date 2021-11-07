@@ -15,11 +15,16 @@ import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
 fun ScreenOne(
     viewModel: MainViewModel = hiltViewModel()
 ) {
-    val name by viewModel.title.observeAsState()
-    val number by viewModel.data.observeAsState()
+    val _name by viewModel.title.observeAsState()
+    val _number by viewModel.data.observeAsState()
 
     Column {
-        Greeting(name ?: "default", number ?: -1)
+        _name?.let { name ->
+            _number?.let { number ->
+                Greeting(_name ?: "default", _number ?: -1)
+            }  ?: Text("Waiting for data")
+        } ?: Text("Waiting for data")
+
         Button(
             onClick = {
                 viewModel.displaySnackbar(R.string.test_snakebar)
