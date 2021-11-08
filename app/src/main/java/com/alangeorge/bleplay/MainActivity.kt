@@ -12,6 +12,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.alangeorge.bleplay.ui.ScreenOne
+import com.alangeorge.bleplay.ui.ScreenTwo
 import com.alangeorge.bleplay.ui.StartBottomBar
 import com.alangeorge.bleplay.ui.StartScreens
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
@@ -68,7 +69,7 @@ fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier) {
         ScreenOne()
     }
     composable(StartScreens.ScreenTwo.route) {
-        Text("ScreenTwo")
+        ScreenTwo()
     }
     composable(StartScreens.ScreenThree.route) {
         Text("ScreenThree")
