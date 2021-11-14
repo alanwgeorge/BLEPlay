@@ -43,7 +43,7 @@ fun rememberAppState(
 class AppState(
     val scaffoldState: ScaffoldState,
     val navController: NavHostController,
-    coroutineScope: CoroutineScope,
+    val coroutineScope: CoroutineScope,
     context: Context
 ) {
     val snackbarMessagePipeline = EntryPoints.get(context, SnackbarMessagePipelineEntryPoint::class.java).getSnackbarMessagePipeline()
@@ -51,12 +51,15 @@ class AppState(
     init {
         coroutineScope.launch {
             snackbarMessagePipeline.events
-                .map {
-                    context.getString(it.messageId)
+                .map { message ->
+                    message.message.fold(
+                        { context.getString(it) },
+                        { it }
+                    )
                 }
-                .collectIndexed { _, message ->
+                .collect { message ->
                     Timber.d("snackbar message: $message")
-                    scaffoldState.snackbarHostState.showSnackbar(message = message, duration = SnackbarDuration.Long)
+                    scaffoldState.snackbarHostState.showSnackbar(message = message, duration = SnackbarDuration.Short)
                 }
         }
 

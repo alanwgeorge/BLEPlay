@@ -5,4 +5,6 @@
     <string name="home_two">Two</string>
     <string name="home_three">Three</string>
     <string name="home_four">Four</string>
+    <string name="ble_start_scan_message">Starting BLE Scan</string>
+    <string name="ble_stop_scan_message">BLE scan stopped</string>
 </resources>

@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.alangeorge.bleplay.R
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
+import com.alangeorge.bleplay.viewmodel.MainViewModel
 
 @Composable
 fun ScreenOne(

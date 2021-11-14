@@ -1,5 +1,5 @@
 package com.alangeorge.bleplay.model
 
-import androidx.annotation.StringRes
+import arrow.core.Either
 
-data class SnackbarMessage(@StringRes val messageId: Int)
+data class SnackbarMessage(val message: Either<Int, String>)

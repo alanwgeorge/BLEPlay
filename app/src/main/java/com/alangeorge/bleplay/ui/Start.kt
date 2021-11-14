@@ -25,7 +25,7 @@ sealed class StartScreens(
 ) {
     object ScreenOne : StartScreens(R.string.home_one, Icons.Outlined.Home, "start/one")
     object ScreenTwo : StartScreens(R.string.home_two, Icons.Outlined.AccountBox, "start/two")
-    object ScreenThree : StartScreens(R.string.home_three, Icons.Outlined.Call, "start/three")
+    object ScreenThree : StartScreens(R.string.home_three, Icons.Outlined.Call, DEVICE_ROUTE_BASE)
     object ScreenFour : StartScreens(R.string.home_four, Icons.Outlined.Lock, "start/four")
 
     companion object {

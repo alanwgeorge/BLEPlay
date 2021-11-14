@@ -1,13 +1,14 @@
-package com.alangeorge.bleplay.ui
+package com.alangeorge.bleplay.viewmodel
 
 import androidx.annotation.StringRes
 import androidx.lifecycle.*
+import arrow.core.left
+import arrow.core.right
 import com.alangeorge.bleplay.common.Pipeline
 import com.alangeorge.bleplay.model.SnackbarMessage
 import com.alangeorge.bleplay.repository.BleOperationRequest
 import com.alangeorge.bleplay.repository.BleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -42,7 +43,7 @@ class MainViewModel @Inject constructor(
 
     fun displaySnackbar(@StringRes messageId: Int) {
         viewModelScope.launch {
-            snackbarMessagePipeline.produceEvent(SnackbarMessage(messageId))
+            snackbarMessagePipeline.produceEvent(SnackbarMessage(messageId.left()))
         }
     }
 
