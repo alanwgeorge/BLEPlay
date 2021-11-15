@@ -3,8 +3,12 @@ package com.alangeorge.bleplay.viewmodel
 import android.app.Application
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.Build
+import android.os.ParcelUuid
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import arrow.core.right
@@ -13,9 +17,11 @@ import com.alangeorge.bleplay.model.SnackbarMessage
 import com.alangeorge.bleplay.repository.BleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.*
 import javax.inject.Inject
 
 @HiltViewModel
@@ -24,6 +30,10 @@ class BleViewModel @Inject constructor(
     private val snackbarMessagePipeline: Pipeline<SnackbarMessage>,
     application: Application
 ) : ViewModel() {
+
+    val selectedServiceFilter = MutableStateFlow(0)
+
+
     private val manager = application.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val adapter = manager?.adapter
     private val scanner = adapter?.bluetoothLeScanner
@@ -59,6 +69,18 @@ class BleViewModel @Inject constructor(
         }
     }
 
+    private val settings =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            ScanSettings.Builder()
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build()
+        } else {
+            ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build()
+        }
+
     private val _scanResultsMap = MutableStateFlow<Map<String, ScanResult>>(value = emptyMap())
 
     val scanResults
@@ -66,9 +88,18 @@ class BleViewModel @Inject constructor(
             map.toList().map { it.second }
         }
 
+    init {
+        viewModelScope.launch {
+            selectedServiceFilter.collect {
+                _scanResultsMap.emit(emptyMap())
+            }
+        }
+    }
+
     fun startScan() {
         if (adapter?.isEnabled == true && scanner != null) {
-            scanner.startScan(scanCallback)
+            val filter = listOf(serviceFilters[selectedServiceFilter.value].first)
+            scanner.startScan(filter, settings, scanCallback)
         } else {
             viewModelScope.launch {
                 snackbarMessagePipeline.produceEvent(SnackbarMessage("Ble adapter not enabled".right()))
@@ -88,4 +119,19 @@ class BleViewModel @Inject constructor(
     }
 
     fun findDevice(address: String): ScanResult? = _scanResultsMap.value[address]
+
+    companion object {
+        val serviceFilters = listOf(
+            ScanFilter.Builder().build() to "No Filter",
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")))
+                .build() to "Heart Rate",
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(UUID.fromString("00001818-0000-1000-8000-00805f9b34fb")))
+                .build() to "Cycling Power",
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(UUID.fromString("0000fe51-0000-1000-8000-00805f9b34fb")))
+                .build() to "SRAM"
+        )
+    }
 }

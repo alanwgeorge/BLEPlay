@@ -94,8 +94,8 @@ fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier, appState: AppState) 
             }
             val viewModel = hiltViewModel<BleViewModel>(parentEntry)
             val scanResults by viewModel.scanResults.collectAsState(initial = emptyList())
-            ScreenBleScan(
-                scanResults = scanResults,
+            val selectedFilter by viewModel.selectedServiceFilter.collectAsState()
+            ScreenBleScanPermissionsWrapper(
                 startScan = {
                     appState.coroutineScope.launch {
                         viewModel.startScan()
@@ -111,7 +111,13 @@ fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier, appState: AppState) 
                 status = viewModel::scanStatus,
                 deviceOnClick = { address ->
                     appState.navController.navigate("$DEVICE_ROUTE_BASE/$address")
-                }
+                },
+                setFilter = { filterIndex ->
+                    viewModel.selectedServiceFilter.tryEmit(filterIndex)
+                },
+                filters = BleViewModel.serviceFilters.map { it.second },
+                selectedFilter = selectedFilter,
+                scanResults = scanResults,
             )
         }
         composable(

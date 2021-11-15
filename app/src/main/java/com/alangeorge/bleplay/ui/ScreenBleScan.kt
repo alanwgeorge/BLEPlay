@@ -6,40 +6,40 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.Button
-import androidx.compose.material.Divider
-import androidx.compose.material.Text
+import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.alangeorge.bleplay.common.plus
 import com.alangeorge.bleplay.common.then
+import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionsRequired
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 @ExperimentalPermissionsApi
 @Composable
-fun ScreenBleScan(
+fun ScreenBleScanPermissionsWrapper(
     startScan: () -> Unit,
     stopScan: () -> Unit,
     status: () -> Unit,
     deviceOnClick: (String) -> Unit,
+    setFilter: (Int) -> Unit,
+    filters: List<String>,
+    selectedFilter: Int,
     scanResults: List<ScanResult>
 ) {
-    val (isScanning, setIsScanning) = rememberSaveable { mutableStateOf(false) }
-    val toggleScan = { setIsScanning(isScanning.not()) }
-
     val (doNotShowRationale, setDoNotShowRationale) = rememberSaveable { mutableStateOf(false)  }
     val bleScanPermissionsState = rememberMultiplePermissionsState(
-        permissions = listOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
+        permissions = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
     )
 
     PermissionsRequired(
@@ -77,47 +77,102 @@ fun ScreenBleScan(
 
         }
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ScreenBleScan(
+            startScan = startScan,
+            stopScan = stopScan,
+            status = status,
+            deviceOnClick = deviceOnClick,
+            setFilter =setFilter,
+            filters = filters,
+            selectedFilter = selectedFilter,
+            scanResults = scanResults.map { it.uiData }
+        )
+    }
+}
+
+@Composable
+fun ScreenBleScan(
+    startScan: () -> Unit,
+    stopScan: () -> Unit,
+    status: () -> Unit,
+    deviceOnClick: (String) -> Unit,
+    setFilter: (Int) -> Unit,
+    filters: List<String>,
+    selectedFilter: Int,
+    scanResults: List<ScanResultUiData>
+) {
+    val (isScanning, setIsScanning) = rememberSaveable { mutableStateOf(false) }
+    val toggleScan = { setIsScanning(isScanning.not()) }
+    val filterListExpanded = remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Spacer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+        )
+        Button(
+            onClick = startScan then toggleScan,
+            enabled = isScanning.not()
         ) {
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(28.dp)
-            )
-            Button(
-                onClick = startScan then toggleScan,
-                enabled = isScanning.not()
-            ) {
-                Text(text = "Start BLE Scan")
-            }
-            Button(
-                onClick = stopScan + toggleScan,
-                enabled = isScanning
-            ) {
-                Text(text = "Stop BLE Scan")
-            }
-            Button(
-                onClick = status
-            ) {
-                Text(text = "BLE adapter status")
-            }
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                items(scanResults) { result ->
-                    ScanResultRow(result = result, deviceOnClick = deviceOnClick)
+            Text(text = "Start BLE Scan")
+        }
+        Button(
+            onClick = stopScan + toggleScan,
+            enabled = isScanning
+        ) {
+            Text(text = "Stop BLE Scan")
+        }
+        Box {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = filters[selectedFilter], modifier = Modifier.padding(start = 16.dp))
+                IconButton(
+                    onClick = { filterListExpanded.value = true },
+                    enabled = isScanning.not()
+                ) {
+                    Icon(Icons.Default.Menu, contentDescription = "TODO")
                 }
+            }
+            DropdownMenu(
+                expanded = filterListExpanded.value,
+                onDismissRequest = { filterListExpanded.value = false }) {
+                filters.forEachIndexed() { index, label ->
+                    DropdownMenuItem(onClick = {
+                        setFilter(index)
+                        filterListExpanded.value = false
+                    }) {
+                        Text(text = label)
+                    }
+                }
+            }
+        }
+        Button(
+            onClick = status
+        ) {
+            Text(text = "BLE adapter status")
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            items(scanResults) { result ->
+                ScanResultRow(result = result, deviceOnClick = deviceOnClick)
             }
         }
     }
 }
 
+data class ScanResultUiData(val address: String, val name: String, val rssi: Int?)
+
+val ScanResult.uiData
+        get() = ScanResultUiData(address = device.address, name = scanRecord?.deviceName ?: "N/A", rssi = rssi)
+
 @Composable
-fun ScanResultRow(result: ScanResult, deviceOnClick: (String) -> Unit) {
+fun ScanResultRow(result: ScanResultUiData, deviceOnClick: (String) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -126,16 +181,44 @@ fun ScanResultRow(result: ScanResult, deviceOnClick: (String) -> Unit) {
                 .fillMaxWidth()
                 .padding(start = 4.dp, end = 4.dp)
                 .clickable {
-                    deviceOnClick(result.device.address)
+                    deviceOnClick(result.address)
                 },
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(text = result.device.address, fontWeight = FontWeight.Bold)
-            Text(text = result.scanRecord?.deviceName ?: "N/A")
+            Text(text = result.address, fontWeight = FontWeight.Bold)
+            Text(text = result.name)
             Text(text = "rssi:${result.rssi}")
         }
         Spacer(modifier = Modifier.height(4.dp))
         Divider(modifier = Modifier.height(1.dp))
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ScanResultRowPreview() {
+    val result = ScanResultUiData(address = "CF:19:E3:97:E2:9C", name = "TICKR 3D5C", rssi = -45)
+    BLEPlayTheme {
+        ScanResultRow(result = result, deviceOnClick = {})
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ScreenBleScanPreview() {
+    BLEPlayTheme {
+        ScreenBleScan(
+            startScan = { },
+            stopScan = { },
+            status = { },
+            deviceOnClick = { },
+            setFilter = {},
+            filters = listOf("No Filter", "Heart Rate Service"),
+            selectedFilter = 1,
+            scanResults = List(6) {
+                ScanResultUiData(address = "CF:19:E3:97:E2:9C", name = "TICKR 3D5C", rssi = -45)
+            }
+        )
     }
 }
 
