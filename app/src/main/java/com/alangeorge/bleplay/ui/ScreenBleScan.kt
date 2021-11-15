@@ -2,6 +2,7 @@ package com.alangeorge.bleplay.ui
 
 import android.Manifest
 import android.bluetooth.le.ScanResult
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +32,7 @@ fun ScreenBleScanPermissionsWrapper(
     startScan: () -> Unit,
     stopScan: () -> Unit,
     status: () -> Unit,
+    clearResults: () -> Unit,
     deviceOnClick: (String) -> Unit,
     setFilter: (Int) -> Unit,
     filters: List<String>,
@@ -38,9 +40,17 @@ fun ScreenBleScanPermissionsWrapper(
     scanResults: List<ScanResult>
 ) {
     val (doNotShowRationale, setDoNotShowRationale) = rememberSaveable { mutableStateOf(false)  }
-    val bleScanPermissionsState = rememberMultiplePermissionsState(
-        permissions = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
-    )
+    val bleScanPermissionsState =
+        rememberMultiplePermissionsState(
+                permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    listOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.BLUETOOTH_SCAN,
+                    )
+                } else {
+                    listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+        )
 
     PermissionsRequired(
         multiplePermissionsState = bleScanPermissionsState,
@@ -80,7 +90,7 @@ fun ScreenBleScanPermissionsWrapper(
         ScreenBleScan(
             startScan = startScan,
             stopScan = stopScan,
-            status = status,
+            clearResults = clearResults,
             deviceOnClick = deviceOnClick,
             setFilter =setFilter,
             filters = filters,
@@ -94,7 +104,7 @@ fun ScreenBleScanPermissionsWrapper(
 fun ScreenBleScan(
     startScan: () -> Unit,
     stopScan: () -> Unit,
-    status: () -> Unit,
+    clearResults: () -> Unit,
     deviceOnClick: (String) -> Unit,
     setFilter: (Int) -> Unit,
     filters: List<String>,
@@ -151,9 +161,9 @@ fun ScreenBleScan(
             }
         }
         Button(
-            onClick = status
+            onClick = clearResults
         ) {
-            Text(text = "BLE adapter status")
+            Text(text = "Clear Scan Results")
         }
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
@@ -210,7 +220,7 @@ fun ScreenBleScanPreview() {
         ScreenBleScan(
             startScan = { },
             stopScan = { },
-            status = { },
+            clearResults = { },
             deviceOnClick = { },
             setFilter = {},
             filters = listOf("No Filter", "Heart Rate Service"),

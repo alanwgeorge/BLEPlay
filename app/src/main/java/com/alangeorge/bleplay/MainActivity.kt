@@ -109,6 +109,7 @@ fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier, appState: AppState) 
                     }
                 },
                 status = viewModel::scanStatus,
+                clearResults = viewModel::clearResults,
                 deviceOnClick = { address ->
                     appState.navController.navigate("$DEVICE_ROUTE_BASE/$address")
                 },

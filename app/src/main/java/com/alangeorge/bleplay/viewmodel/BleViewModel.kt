@@ -30,10 +30,6 @@ class BleViewModel @Inject constructor(
     private val snackbarMessagePipeline: Pipeline<SnackbarMessage>,
     application: Application
 ) : ViewModel() {
-
-    val selectedServiceFilter = MutableStateFlow(0)
-
-
     private val manager = application.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val adapter = manager?.adapter
     private val scanner = adapter?.bluetoothLeScanner
@@ -88,6 +84,8 @@ class BleViewModel @Inject constructor(
             map.toList().map { it.second }
         }
 
+    val selectedServiceFilter = MutableStateFlow(0)
+
     init {
         viewModelScope.launch {
             selectedServiceFilter.collect {
@@ -116,6 +114,10 @@ class BleViewModel @Inject constructor(
         viewModelScope.launch {
             snackbarMessagePipeline.produceEvent(SnackbarMessage(message.right()))
         }
+    }
+
+    fun clearResults() {
+        _scanResultsMap.value = emptyMap()
     }
 
     fun findDevice(address: String): ScanResult? = _scanResultsMap.value[address]
