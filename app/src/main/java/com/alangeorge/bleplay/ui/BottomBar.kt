@@ -11,33 +11,36 @@ import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.alangeorge.bleplay.R
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
 
-sealed class StartScreens(
+sealed class BottomBarScreens(
     @StringRes val title: Int,
     val icon: ImageVector,
     val route: String
 ) {
-    object ScreenOne : StartScreens(R.string.home_one, Icons.Outlined.Home, "start/one")
-    object ScreenTwo : StartScreens(R.string.home_two, Icons.Outlined.AccountBox, "start/two")
-    object ScreenThree : StartScreens(R.string.home_three, Icons.Outlined.Call, DEVICE_ROUTE_BASE)
-    object ScreenFour : StartScreens(R.string.home_four, Icons.Outlined.Lock, "start/four")
+    object ScreenOne : BottomBarScreens(R.string.bottombar_ble_scan, Icons.Outlined.Call, DEVICE_ROUTE_SCAN)
+    object ScreenTwo : BottomBarScreens(R.string.bottombar_two, Icons.Outlined.AccountBox, "start/two")
+    object ScreenThree : BottomBarScreens(R.string.bottombar_three, Icons.Outlined.Home, "start/three")
+    object ScreenFour : BottomBarScreens(R.string.bottombar_four, Icons.Outlined.Lock, "start/four")
 
     companion object {
         fun asList() = listOf(ScreenOne, ScreenTwo, ScreenThree, ScreenFour)
     }
+
+    override fun toString(): String {
+        return "StartScreens(title=$title, icon=$icon, route='$route')"
+    }
+
 }
 
-
 @Composable
-fun StartBottomBar(
-    navigateToRoute: (String) -> Unit,
-    items: List<StartScreens>,
+fun BottomBar(
+    navigateToRoute: (BottomBarScreens) -> Unit,
+    items: List<BottomBarScreens>,
     currentRoute: String
 ) {
     BottomNavigation {
@@ -45,7 +48,7 @@ fun StartBottomBar(
             BottomNavigationItem(
                 selected = currentRoute == screen.route,
                 label = { Text(stringResource(id = screen.title)) },
-                onClick = { navigateToRoute(screen.route) },
+                onClick = { navigateToRoute(screen) },
                 alwaysShowLabel = true,
                 icon = { Icon(
                     imageVector = screen.icon,
@@ -58,12 +61,12 @@ fun StartBottomBar(
 
 @Preview
 @Composable
-fun StartBottomBarPreview() {
+fun BottomBarPreview() {
     BLEPlayTheme {
-        StartBottomBar(
+        BottomBar(
             navigateToRoute = {},
-            items = StartScreens.asList(),
-            currentRoute = StartScreens.ScreenTwo.route
+            items = BottomBarScreens.asList(),
+            currentRoute = BottomBarScreens.ScreenTwo.route
         )
     }
 }

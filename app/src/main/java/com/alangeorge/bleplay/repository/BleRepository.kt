@@ -1,5 +1,6 @@
 package com.alangeorge.bleplay.repository
 
+import android.bluetooth.le.ScanResult
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -7,6 +8,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 class BleRepository {
+    val scanResults = mutableMapOf<String, ScanResult>()
+
     init {
         GlobalScope.launch {
             while (true) {

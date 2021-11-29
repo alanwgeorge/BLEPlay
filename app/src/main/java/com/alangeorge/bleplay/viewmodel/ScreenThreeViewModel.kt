@@ -15,7 +15,7 @@ import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
-class MainViewModel @Inject constructor(
+class ScreenThreeViewModel @Inject constructor(
     private val repository: BleRepository,
     private val snackbarMessagePipeline: Pipeline<SnackbarMessage>
 ) : ViewModel() {

@@ -1,10 +1,11 @@
 <resources>
     <string name="app_name">BLE Play</string>
     <string name="test_snakebar">Test snackbar message</string>
-    <string name="home_one">One</string>
-    <string name="home_two">Two</string>
-    <string name="home_three">Three</string>
-    <string name="home_four">Four</string>
+    <string name="bottombar_one">One</string>
+    <string name="bottombar_two">Two</string>
+    <string name="bottombar_three">Three</string>
+    <string name="bottombar_four">Four</string>
+    <string name="bottombar_ble_scan">Scan</string>
     <string name="ble_start_scan_message">Starting BLE Scan</string>
     <string name="ble_stop_scan_message">BLE scan stopped</string>
 </resources>

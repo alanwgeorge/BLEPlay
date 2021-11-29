@@ -10,9 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +29,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 fun ScreenBleScanPermissionsWrapper(
     startScan: () -> Unit,
     stopScan: () -> Unit,
+    isScanning: Boolean,
     status: () -> Unit,
     clearResults: () -> Unit,
     deviceOnClick: (String) -> Unit,
@@ -42,10 +41,12 @@ fun ScreenBleScanPermissionsWrapper(
     val (doNotShowRationale, setDoNotShowRationale) = rememberSaveable { mutableStateOf(false)  }
     val bleScanPermissionsState =
         rememberMultiplePermissionsState(
-                permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                permissions =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     listOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.BLUETOOTH_SCAN,
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.BLUETOOTH_SCAN,
+                            Manifest.permission.BLUETOOTH_CONNECT
                     )
                 } else {
                     listOf(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -90,6 +91,7 @@ fun ScreenBleScanPermissionsWrapper(
         ScreenBleScan(
             startScan = startScan,
             stopScan = stopScan,
+            isScanning = isScanning,
             clearResults = clearResults,
             deviceOnClick = deviceOnClick,
             setFilter =setFilter,
@@ -104,6 +106,7 @@ fun ScreenBleScanPermissionsWrapper(
 fun ScreenBleScan(
     startScan: () -> Unit,
     stopScan: () -> Unit,
+    isScanning: Boolean,
     clearResults: () -> Unit,
     deviceOnClick: (String) -> Unit,
     setFilter: (Int) -> Unit,
@@ -111,59 +114,56 @@ fun ScreenBleScan(
     selectedFilter: Int,
     scanResults: List<ScanResultUiData>
 ) {
-    val (isScanning, setIsScanning) = rememberSaveable { mutableStateOf(false) }
-    val toggleScan = { setIsScanning(isScanning.not()) }
-    val filterListExpanded = remember { mutableStateOf(false) }
+    var filterListExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Spacer(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(28.dp)
+                .height(16.dp)
         )
-        Button(
-            onClick = startScan then toggleScan,
-            enabled = isScanning.not()
+        Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            Text(text = "Start BLE Scan")
-        }
-        Button(
-            onClick = stopScan + toggleScan,
-            enabled = isScanning
-        ) {
-            Text(text = "Stop BLE Scan")
+            Button(
+                    onClick = startScan,
+                    enabled = isScanning.not()
+            ) { Text(text = "Start Scan") }
+            Button(
+                    onClick = stopScan,
+                    enabled = isScanning
+            ) { Text(text = "Stop Scan") }
+            Button(
+                    onClick = clearResults
+            ) { Text(text = "Clear Results") }
         }
         Box {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = filters[selectedFilter], modifier = Modifier.padding(start = 16.dp))
                 IconButton(
-                    onClick = { filterListExpanded.value = true },
+                    onClick = { filterListExpanded = true },
                     enabled = isScanning.not()
                 ) {
                     Icon(Icons.Default.Menu, contentDescription = "TODO")
                 }
             }
             DropdownMenu(
-                expanded = filterListExpanded.value,
-                onDismissRequest = { filterListExpanded.value = false }) {
+                expanded = filterListExpanded,
+                onDismissRequest = { filterListExpanded = false }) {
                 filters.forEachIndexed() { index, label ->
                     DropdownMenuItem(onClick = {
                         setFilter(index)
-                        filterListExpanded.value = false
+                        filterListExpanded = false
                     }) {
                         Text(text = label)
                     }
                 }
             }
-        }
-        Button(
-            onClick = clearResults
-        ) {
-            Text(text = "Clear Scan Results")
         }
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
@@ -179,7 +179,7 @@ fun ScreenBleScan(
 data class ScanResultUiData(val address: String, val name: String, val rssi: Int?)
 
 val ScanResult.uiData
-        get() = ScanResultUiData(address = device.address, name = scanRecord?.deviceName ?: "N/A", rssi = rssi)
+        get() = ScanResultUiData(address = device.address, name = device.name ?: "N/A", rssi = rssi)
 
 @Composable
 fun ScanResultRow(result: ScanResultUiData, deviceOnClick: (String) -> Unit) {
@@ -220,9 +220,10 @@ fun ScreenBleScanPreview() {
         ScreenBleScan(
             startScan = { },
             stopScan = { },
+            isScanning = false,
             clearResults = { },
             deviceOnClick = { },
-            setFilter = {},
+            setFilter = { },
             filters = listOf("No Filter", "Heart Rate Service"),
             selectedFilter = 1,
             scanResults = List(6) {

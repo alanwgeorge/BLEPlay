@@ -16,9 +16,7 @@ import com.alangeorge.bleplay.common.Pipeline
 import com.alangeorge.bleplay.model.SnackbarMessage
 import com.alangeorge.bleplay.repository.BleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.*
@@ -44,6 +42,7 @@ class BleViewModel @Inject constructor(
                     _scanResultsMap.emit(
                         _scanResultsMap.value.toMutableMap().apply {
                             put(result.device.address, result)
+                            repository.scanResults[result.device.address] = result
                         }
                     )
                 }
@@ -79,14 +78,15 @@ class BleViewModel @Inject constructor(
 
     private val _scanResultsMap = MutableStateFlow<Map<String, ScanResult>>(value = emptyMap())
 
-    val scanResults
-        get() = _scanResultsMap.map { map ->
-            map.toList().map { it.second }
-        }
+    val scanResults = _scanResultsMap.map { it.values.toList() }
 
     val selectedServiceFilter = MutableStateFlow(0)
 
+    private val _isScanningFlow = MutableStateFlow(false)
+    val isScanning = _isScanningFlow.asStateFlow()
+
     init {
+        Timber.d("BleViewModel: init()")
         viewModelScope.launch {
             selectedServiceFilter.collect {
                 _scanResultsMap.emit(emptyMap())
@@ -98,6 +98,7 @@ class BleViewModel @Inject constructor(
         if (adapter?.isEnabled == true && scanner != null) {
             val filter = listOf(serviceFilters[selectedServiceFilter.value].first)
             scanner.startScan(filter, settings, scanCallback)
+            viewModelScope.launch { _isScanningFlow.emit(true) }
         } else {
             viewModelScope.launch {
                 snackbarMessagePipeline.produceEvent(SnackbarMessage("Ble adapter not enabled".right()))
@@ -107,6 +108,7 @@ class BleViewModel @Inject constructor(
 
     fun stopScan() {
         scanner?.stopScan(scanCallback)
+        viewModelScope.launch { _isScanningFlow.emit(false) }
     }
 
     fun scanStatus() {
@@ -122,18 +124,8 @@ class BleViewModel @Inject constructor(
 
     fun findDevice(address: String): ScanResult? = _scanResultsMap.value[address]
 
-    companion object {
-        val serviceFilters = listOf(
-            ScanFilter.Builder().build() to "No Filter",
-            ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")))
-                .build() to "Heart Rate",
-            ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(UUID.fromString("00001818-0000-1000-8000-00805f9b34fb")))
-                .build() to "Cycling Power",
-            ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(UUID.fromString("0000fe51-0000-1000-8000-00805f9b34fb")))
-                .build() to "SRAM"
-        )
+    override fun onCleared() {
+        Timber.d("onCleared()")
+        super.onCleared()
     }
 }

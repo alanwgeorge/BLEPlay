@@ -1,6 +1,7 @@
 package com.alangeorge.bleplay
 
 import android.content.Context
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.material.ScaffoldState
 import androidx.compose.material.SnackbarDuration
 import androidx.compose.material.rememberScaffoldState
@@ -9,10 +10,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
 import com.alangeorge.bleplay.common.Pipeline
 import com.alangeorge.bleplay.model.SnackbarMessage
-import com.alangeorge.bleplay.ui.StartScreens
+import com.alangeorge.bleplay.ui.BottomBarScreens
+import com.google.accompanist.navigation.animation.rememberAnimatedNavController
 import dagger.hilt.EntryPoint
 import dagger.hilt.EntryPoints
 import dagger.hilt.InstallIn
@@ -29,10 +30,11 @@ interface SnackbarMessagePipelineEntryPoint {
     fun getSnackbarMessagePipeline(): Pipeline<SnackbarMessage>
 }
 
+@ExperimentalAnimationApi
 @Composable
 fun rememberAppState(
     scaffoldState: ScaffoldState = rememberScaffoldState(),
-    navController: NavHostController = rememberNavController(),
+    navController: NavHostController = rememberAnimatedNavController(),
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
     context: Context = LocalContext.current.applicationContext
 ) =
@@ -47,6 +49,13 @@ class AppState(
     context: Context
 ) {
     val snackbarMessagePipeline = EntryPoints.get(context, SnackbarMessagePipelineEntryPoint::class.java).getSnackbarMessagePipeline()
+    val bottomBarTabs = listOf(
+            BottomBarScreens.ScreenOne,
+            BottomBarScreens.ScreenTwo,
+            BottomBarScreens.ScreenThree,
+            BottomBarScreens.ScreenFour
+    )
+    private val routesWithBottomNav = bottomBarTabs.map(BottomBarScreens::route)
 
     init {
         coroutineScope.launch {
@@ -77,13 +86,13 @@ class AppState(
     private val currentRouteFlow = MutableStateFlow("")
     val currentRoute = currentRouteFlow.asStateFlow()
 
-    @Composable
-    fun shouldShowBottomBar() = true
+    val shouldShowBottomBarFlow = currentRouteFlow.map(routesWithBottomNav::contains)
 
-    val bottomBarTabs = listOf(
-        StartScreens.ScreenOne,
-        StartScreens.ScreenTwo,
-        StartScreens.ScreenThree,
-        StartScreens.ScreenFour
-    )
+    fun navigateBottomBar(screen: BottomBarScreens) {
+        navController.navigate(screen.route) {
+            popUpTo(0) {
+                inclusive = true
+            }
+        }
+    }
 }
