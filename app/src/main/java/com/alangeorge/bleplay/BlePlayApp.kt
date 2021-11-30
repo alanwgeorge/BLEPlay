@@ -144,18 +144,20 @@ fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier, appState: AppState) 
             val scanResults by deviceViewModel.scanResultsFlow.collectAsState()
             val discoveredServices by deviceViewModel.discoveredServiceFlow.collectAsState(initial = emptyList())
             val mtu by deviceViewModel.mtuChangedFlow.collectAsState(initial = null)
-            val batteryLevel by deviceViewModel.batteryLevelFlow.collectAsState(initial = null)
+            val batteryLevel by deviceViewModel.batteryLevelFlow.collectAsState()
+            val heartRate by deviceViewModel.heartRateFlow.collectAsState()
             val isConnected by deviceViewModel.connectedStatusFlow.collectAsState()
             val isConnecting by deviceViewModel.isConnectingStatusFlow.collectAsState()
             val connectOnClick = remember { {
                 if (isConnected) deviceViewModel.disconnectGatts() else deviceViewModel.connectGatt()
             } }
 
-            scanResults?.let {
+            scanResults?.let { scanData ->
                 ScreenBleDeviceDetail(
-                    scanData = it,
+                    scanData = scanData,
                     mtu = mtu,
-                    batteryLevel = batteryLevel,
+                    heartRate = heartRate.takeIf { it > 0 },
+                    batteryLevel = batteryLevel.takeIf { it > 0 },
                     discoveredServices = discoveredServices,
                     bondOnClick = deviceViewModel::bond,
                     isConnected = isConnected,

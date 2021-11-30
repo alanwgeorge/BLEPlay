@@ -36,7 +36,8 @@ fun ScreenBleDeviceDetail(
     scanData: ScanData,
     discoveredServices: List<BluetoothGattService>,
     mtu: Int?,
-    batteryLevel: String?,
+    heartRate: Int?,
+    batteryLevel: Int?,
     bondOnClick: () -> Unit,
     connectOnClick: () -> Unit,
     isConnecting: Boolean,
@@ -53,7 +54,7 @@ fun ScreenBleDeviceDetail(
                 Text(text = "address : ${deviceData.address}")
                 batteryLevel?.let {
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text(text = "battery: $it")
+                    Text(text = "battery: $it%")
                 }
             }
             if (deviceData.name != null) Text(text = "name : ${deviceData.name}")
@@ -69,6 +70,7 @@ fun ScreenBleDeviceDetail(
             BondButton(scanData = scanData, bondOnClick = bondOnClick, onBondStateChange = onBondStateChange)
             Text(text = "service ids: ${scanData.serviceIds}")
             ConnectButton(isConnected = isConnected, isConnecting = isConnecting, onClick = connectOnClick)
+            heartRate?.let { Text(text = "Heart Rete: $it") }
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(discoveredServices) { service ->
                     BleServiceItem(bleService = service)
@@ -205,7 +207,8 @@ fun ScreenBleDeviceDetailPreview() {
             ),
             mtu = 517,
             discoveredServices = listOf(previewService, previewService),
-            batteryLevel = "0x64",
+            batteryLevel = 50,
+            heartRate = 100,
             bondOnClick = {},
             connectOnClick = {},
             isConnected = true,

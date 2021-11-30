@@ -53,8 +53,11 @@ class BleDeviceViewModel @Inject constructor(
     private val _scanResultsFlow = MutableStateFlow(scanResult?.asScanData)
     val scanResultsFlow = _scanResultsFlow.asStateFlow()
 
-    private val _batteryLevelFlow = MutableStateFlow<String?>(null)
+    private val _batteryLevelFlow = MutableStateFlow(-1)
     val batteryLevelFlow = _batteryLevelFlow.asStateFlow()
+
+    private val _heartRateFlow = MutableStateFlow(-1)
+    val heartRateFlow = _heartRateFlow.asStateFlow()
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
@@ -112,16 +115,55 @@ class BleDeviceViewModel @Inject constructor(
             }
         }
 
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic
-        ) {
-            Timber.d("onCharacteristicChanged: ${characteristic.uuid} ${characteristic.value?.size} ${characteristic.value?.toList()} ${characteristic.value?.toHexString()}")
+        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            when (characteristic.uuid) {
+                characteristicUuid[CHARACTERISTIC_NAME_HEART_RATE] -> handleHeartReteChange(characteristic)
+                characteristicUuid[CHARACTERISTIC_NAME_BATTERY_LEVEL] -> handleBatteryLevel(characteristic)
+            }
+        }
+
+        override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            viewModelScope.launch {
+                gattResultFlow.emit(
+                    GattCallbackResult.DescriptorWrite(
+                        gatt = gatt,
+                        descriptor = descriptor,
+                        status = status
+                    )
+                )
+            }
         }
     }
 
     private fun handleBatteryLevel(characteristic: BluetoothGattCharacteristic) {
-        viewModelScope.launch { _batteryLevelFlow.emit(characteristic.value.toHexString()) }
+        characteristic
+            .value
+            ?.getOrNull(0)
+            ?.toUByte()
+            ?.toInt()
+            ?.let {
+                Timber.d("battery level: $it")
+                viewModelScope.launch { _batteryLevelFlow.emit(it) }
+            }
+
+    }
+
+    private fun handleHeartReteChange(characteristic: BluetoothGattCharacteristic) {
+         characteristic.value?.getOrNull(0)?.let { flags -> // first byte are the flags
+            val bitSet = BitSet.valueOf(byteArrayOf(flags))
+
+             if (bitSet.length() > 0 && !bitSet[0]) { // first flag bit == 0 means unit8 value
+                 characteristic
+                     .value
+                     ?.getOrNull(1) // unit8 heart rate value
+                     ?.toUByte()
+                     ?.toInt()
+                     ?.let {
+                         Timber.d("heart rate: $it")
+                         viewModelScope.launch { _heartRateFlow.emit(it) }
+                     }
+             }
+        }
     }
 
     private val connectionStateChanged: suspend (GattCallbackResult.ConnectionStateChanged) -> Unit = {
@@ -191,23 +233,26 @@ class BleDeviceViewModel @Inject constructor(
             }
     }
 
-    private fun setHeartRateNotifications(gatt: BluetoothGatt) {
+    private fun startNotifications(gatt: BluetoothGatt, serviceName: String, characteristicName: String) {
         gatt
-            .getService(serviceUuids[SERVICE_NAME_HEART_RATE])
-            ?.getCharacteristic(characteristicUuid[CHARACTERISTIC_NAME_HEART_RATE])
+            .getService(serviceUuids[serviceName])
+            ?.getCharacteristic(characteristicUuid[characteristicName])
             ?.let { heartRateChar ->
                 if (heartRateChar.isNotifiable()) {
                     heartRateChar.getDescriptor(CCC_DESCRIPTOR_UUID)?.let { cccDescriptor ->
                         if (gatt.setCharacteristicNotification(heartRateChar, true)) {
                             cccDescriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                            gatt.writeDescriptor(cccDescriptor)
+                            if (!gatt.writeDescriptor(cccDescriptor)) {
+                                Timber.d("writeDescriptor failed: $serviceName $characteristicName")
+                            }
                         } else {
-                            Timber.d("setHeartRateNotifications() failed")
+                            Timber.d("startNotifications() $serviceName $characteristicName failed")
                         }
                     }
+                } else {
+                    Timber.d("$serviceName $characteristicName is not notifiable")
                 }
-            }
-
+            } ?: Timber.d("failed to look up service or characteristic UUID $serviceName $characteristicName")
     }
 
     init {
@@ -226,9 +271,16 @@ class BleDeviceViewModel @Inject constructor(
                 .run {
                     // gatt reference before mtu change seem to no longer work after mtu update
                     connectedGatts[gatt.device.address] = gatt
-//                    readCharacteristic(gatt, SERVICE_NAME_BATTERY_LEVEL, CHARACTERISTIC_NAME_BATTERY_LEVEL)
-//                    readCharacteristic(gatt, SERVICE_NAME_HEART_RATE, CHARACTERISTIC_NAME_HEART_RATE)
-                    setHeartRateNotifications(gatt)
+                    startNotifications(gatt, SERVICE_NAME_BATTERY_LEVEL, CHARACTERISTIC_NAME_BATTERY_LEVEL)
+                }
+        }
+        viewModelScope.launch {
+            gattResultFlow
+                .filterIsInstance<GattCallbackResult.DescriptorWrite>()
+                .first()
+                .run {
+                    connectedGatts[gatt.device.address] = gatt
+                    startNotifications(gatt, SERVICE_NAME_HEART_RATE,CHARACTERISTIC_NAME_HEART_RATE)
                 }
         }
     }
@@ -343,6 +395,12 @@ sealed class GattCallbackResult {
 
     data class MtuChanged(
         val gatt: BluetoothGatt, val mtu: Int, val status: Int
+    ) : GattCallbackResult()
+
+    data class DescriptorWrite(
+        val gatt: BluetoothGatt,
+        val descriptor: BluetoothGattDescriptor,
+        val status: Int
     ) : GattCallbackResult()
 }
 
