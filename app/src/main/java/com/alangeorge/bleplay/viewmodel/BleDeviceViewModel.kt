@@ -3,9 +3,11 @@ package com.alangeorge.bleplay.viewmodel
 import android.app.Application
 import android.bluetooth.*
 import android.bluetooth.le.ScanResult
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.ParcelUuid
+import android.os.PowerManager
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

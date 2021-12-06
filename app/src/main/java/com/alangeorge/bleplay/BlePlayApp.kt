@@ -85,7 +85,7 @@ fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier, appState: AppState) 
         ScreenTwo()
     }
     composable(BottomBarScreens.ScreenFour.route) {
-        Text("ScreenFour")
+        ScreenGraph()
     }
     navigation(startDestination = BottomBarScreens.ScreenOne.route, route = DEVICE_ROUTE_BASE) {
         val deviceScreenAnimationSpec = tween<IntOffset>(700)

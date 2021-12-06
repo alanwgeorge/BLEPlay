@@ -1,10 +1,9 @@
 package com.alangeorge.bleplay.ui
 
+import android.app.Activity
 import android.bluetooth.*
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.content.*
+import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
@@ -120,6 +119,9 @@ fun BondButton(
 
 @Composable
 fun ConnectButton(isConnected: Boolean, isConnecting: Boolean, onClick: () -> Unit) {
+    if (isConnected) {
+        KeepScreenOn()
+    }
     Button(onClick = onClick, enabled = isConnecting.not()) {
         Crossfade(targetState = isConnected to isConnecting) {
             when(it) {
@@ -166,6 +168,27 @@ fun BleBondBroadcastReceiver(onEvent: (intent: Intent?) -> Unit) {
             context.unregisterReceiver(broadcast)
         }
     }
+}
+
+@Composable
+fun KeepScreenOn() {
+    val context = LocalContext.current
+    DisposableEffect(Unit) {
+        val window = context.findActivity()?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+}
+
+fun Context.findActivity(): Activity? {
+    var context = this
+    while (context is ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
 }
 
 private val previewService
