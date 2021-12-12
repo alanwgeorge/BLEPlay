@@ -17,10 +17,11 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
 import com.alangeorge.bleplay.viewmodel.BleBondState
@@ -69,7 +70,7 @@ fun ScreenBleDeviceDetail(
             BondButton(scanData = scanData, bondOnClick = bondOnClick, onBondStateChange = onBondStateChange)
             Text(text = "service ids: ${scanData.serviceIds}")
             ConnectButton(isConnected = isConnected, isConnecting = isConnecting, onClick = connectOnClick)
-            heartRate?.let { Text(text = "Heart Rete: $it") }
+            heartRate?.let { Text(text = "Heart Rate: $it") }
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(discoveredServices) { service ->
                     BleServiceItem(bleService = service)
@@ -191,52 +192,122 @@ fun Context.findActivity(): Activity? {
     return null
 }
 
-private val previewService
-    get() =
-        BluetoothGattService(UUID.randomUUID(), 1).apply {
-            repeat(5) {
-                addCharacteristic(
-                    BluetoothGattCharacteristic(
-                        UUID.randomUUID(),
-                        BluetoothGattCharacteristic.PROPERTY_READ,
-                        BluetoothGattDescriptor.PERMISSION_READ
-                    )
-                )
-            }
-        }
-
 @Preview(showBackground = true)
 @Composable
-fun BleServiceItemPreview() {
+fun BleServiceItemPreview(
+    @PreviewParameter(ScreenBleDeviceDetailDataProvider::class) data: DeviceDetail
+) {
     BLEPlayTheme {
-        BleServiceItem(bleService = previewService)
+        BleServiceItem(bleService = data.discoveredServices.first())
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, group = "ScreenBleDeviceDetail")
 @Composable
-fun ScreenBleDeviceDetailPreview() {
-    BLEPlayTheme {
-        ScreenBleDeviceDetail(
-            scanData = ScanData(
-                rssi = -76,
-                isConnectable = true,
-                serviceIds = listOf("service Id1", "service id2"),
-                deviceData = DeviceData(
-                    address = "C4:8E:8F:6C:43:9A",
-                    name = "Some BLE Device Name",
-                    bondState = BleBondState.NONE
-                )
-            ),
-            mtu = 517,
-            discoveredServices = listOf(previewService, previewService),
-            batteryLevel = 50,
-            heartRate = 100,
-            bondOnClick = {},
-            connectOnClick = {},
-            isConnected = true,
-            isConnecting = false,
-            onBondStateChange = {}
+fun ScreenBleDeviceDetailPreview(
+    @PreviewParameter(ScreenBleDeviceDetailDataProvider::class) data: DeviceDetail
+) {
+    with (data) {
+        BLEPlayTheme {
+            ScreenBleDeviceDetail(
+                scanData = scanData,
+                mtu = mtu,
+                discoveredServices = discoveredServices,
+                batteryLevel = batteryLevel,
+                heartRate = heartRate,
+                bondOnClick = {},
+                connectOnClick = {},
+                isConnected = isConnected,
+                isConnecting = isConnecting,
+                onBondStateChange = {}
+            )
+        }
+    }
+}
+
+data class DeviceDetail(
+    val scanData: ScanData,
+    val discoveredServices: List<BluetoothGattService>,
+    val mtu: Int? = null,
+    val heartRate: Int? = null,
+    val batteryLevel: Int? = null,
+    val isConnecting: Boolean,
+    val isConnected: Boolean
+)
+
+class ScreenBleDeviceDetailDataProvider : PreviewParameterProvider<DeviceDetail> {
+    object ScanDatas {
+        val connectable = ScanData(
+            rssi = -76,
+            isConnectable = true,
+            serviceIds = listOf("service Id1", "service id2"),
+            deviceData = DeviceData(
+                address = "C4:8E:8F:6C:43:9A",
+                name = "Some BLE Device Name",
+                bondState = BleBondState.NONE
+            )
+        )
+        val notConnectable = ScanData(
+            rssi = -89,
+            isConnectable = true,
+            serviceIds = listOf("service Id1", "service id2"),
+            deviceData = DeviceData(
+                address = "C4:8E:8F:6C:43:9A",
+                name = "Some BLE Device Name",
+                bondState = BleBondState.BONDED
+            )
         )
     }
+
+    object DiscoveredServices {
+        val default = listOf(
+            BluetoothGattService(UUID.randomUUID(), 1).apply {
+                repeat(5) {
+                    addCharacteristic(
+                        BluetoothGattCharacteristic(
+                            UUID.randomUUID(),
+                            BluetoothGattCharacteristic.PROPERTY_READ,
+                            BluetoothGattDescriptor.PERMISSION_READ
+                        )
+                    )
+                }
+            },
+            BluetoothGattService(UUID.randomUUID(), 1).apply {
+                repeat(5) {
+                    addCharacteristic(
+                        BluetoothGattCharacteristic(
+                            UUID.randomUUID(),
+                            BluetoothGattCharacteristic.PROPERTY_READ,
+                            BluetoothGattDescriptor.PERMISSION_READ
+                        )
+                    )
+                }
+            }
+        )
+        val none = emptyList<BluetoothGattService>()
+    }
+
+    override val values =  sequenceOf<DeviceDetail>(
+        DeviceDetail(
+            scanData = ScanDatas.connectable,
+            discoveredServices = DiscoveredServices.none,
+            isConnecting = false,
+            isConnected = false
+        ),
+        DeviceDetail(
+            scanData = ScanDatas.notConnectable,
+            discoveredServices = DiscoveredServices.none,
+            isConnecting = true,
+            isConnected = false,
+        ),
+        DeviceDetail(
+            scanData = ScanDatas.connectable,
+            discoveredServices = DiscoveredServices.default,
+            isConnecting = false,
+            isConnected = true,
+            mtu = 134,
+            heartRate = 150,
+            batteryLevel = 45
+        )
+    )
 }
