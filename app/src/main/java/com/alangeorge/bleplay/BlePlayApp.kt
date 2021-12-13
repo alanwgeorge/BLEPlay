@@ -9,6 +9,7 @@ import androidx.compose.material.Snackbar
 import androidx.compose.material.SnackbarHost
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntOffset
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -27,6 +28,7 @@ import com.google.accompanist.navigation.animation.AnimatedNavHost
 import com.google.accompanist.navigation.animation.composable
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 
+@ExperimentalComposeUiApi
 @ExperimentalPermissionsApi
 @ExperimentalAnimationApi
 @Composable
@@ -75,6 +77,7 @@ fun BlePlayApp() {
     }
 }
 
+@ExperimentalComposeUiApi
 @ExperimentalAnimationApi
 @ExperimentalPermissionsApi
 fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier, appState: AppState) {

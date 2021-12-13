@@ -4,24 +4,31 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.MaterialTheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.nextInt
 
+@ExperimentalComposeUiApi
 @Composable
 fun Graph(modifier: Modifier = Modifier, points: List<Float>) {
     val gradientColor = MaterialTheme.colors.primary
+    var touchX by remember { mutableStateOf(-1f) }
     Canvas(
-        modifier = modifier
+        modifier = modifier.pointerInteropFilter {
+            touchX = it.rawX
+            true
+        }
     ) {
         val gradient = Brush.verticalGradient(
             colors = listOf(gradientColor, Color.Transparent)
@@ -29,7 +36,7 @@ fun Graph(modifier: Modifier = Modifier, points: List<Float>) {
 
         val textPaint = Paint().asFrameworkPaint().apply {
             isAntiAlias = true
-            color = Color.DarkGray.toArgb()
+            color = Color.Black.toArgb()
             textSize = 36f
         }
 
@@ -69,6 +76,23 @@ fun Graph(modifier: Modifier = Modifier, points: List<Float>) {
 //            linePath.lineTo(x2, y2)
 //            fillPath.lineTo(x2, y2)
 
+            if ((x1..x2).contains(touchX)) {
+                drawLine(
+                    color = gradientColor,
+                    strokeWidth = 5f,
+                    start = Offset(x = x1, y = y1),
+                    end = Offset(x = x1, y = canvasHeight)
+                )
+                drawIntoCanvas {
+                    it.nativeCanvas.drawText(
+                        "${p1.times(100).roundToInt()}",
+                        x1,
+                        y1 - 20,
+                        textPaint
+                    )
+                }
+            }
+
             p2
         }
 
@@ -86,6 +110,7 @@ fun Graph(modifier: Modifier = Modifier, points: List<Float>) {
         val pointAverage = points.average().toFloat()
         val avgY = canvasHeight - (canvasHeight * pointAverage)
 
+        // average line and text
         drawLine(color = Color.Red, alpha = .33f, strokeWidth = 5f, start = Offset(x = 0f, y = avgY), end = Offset(x = canvasWidth, y = avgY))
         drawIntoCanvas {
             it.nativeCanvas.drawText(
@@ -108,6 +133,7 @@ fun generateSomeGraphPoints(number: Int = 50, variance: Int = 7) =
         Random.nextInt(limitLow..limitHigh) / 100f
     }
 
+@ExperimentalComposeUiApi
 @Preview(showBackground = true)
 @Composable
 fun GraphPreview() {
