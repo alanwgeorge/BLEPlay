@@ -14,34 +14,11 @@ import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
 
 @ExperimentalComposeUiApi
 @Composable
-fun ScreenGraph2() {
-    var graphPoints by remember { mutableStateOf(generateSomeGraphPoints()) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
-    ) {
-        Graph(modifier = Modifier
-            .fillMaxWidth()
-            .height(250.dp), points = graphPoints)
-        Button(
-            onClick = {
-                graphPoints = generateSomeGraphPoints()
-            }
-        ) {
-            Text(text = "Generate Graph Data")
-        }
-    }
-}
-
-@ExperimentalComposeUiApi
-@Composable
 fun ScreenGraph() {
-    var graphPoints by remember { mutableStateOf(generateSomeGraphPoints()) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val pointsCount = 100
+    val variance = 5
+
+    var graphPoints by remember { mutableStateOf(generateSomeGraphPoints(pointsCount, variance)) }
 
     CustomLayout(
         top = {
@@ -54,14 +31,13 @@ fun ScreenGraph() {
             ) {
                 Button(
                     onClick = {
-                        graphPoints = generateSomeGraphPoints()
+                        graphPoints = generateSomeGraphPoints(pointsCount, variance)
                     }
                 ) {
                     Text(text = "Generate Graph Data")
                 }
             }
-        },
-        snackbarState = snackbarHostState
+        }
     ) {
         Graph(
             modifier = Modifier.padding(16.dp)

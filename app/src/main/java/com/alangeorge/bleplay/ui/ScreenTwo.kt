@@ -17,11 +17,12 @@ import androidx.compose.ui.tooling.preview.Devices
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 
 @Composable
 fun ScreenTwo() {
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = remember { BleSnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val onListScroll: () -> Unit = {
@@ -36,10 +37,11 @@ fun ScreenTwo() {
         ColumnContent(
             onScroll = onListScroll,
             innerPadding = PaddingValues(start = 8.dp, end = 8.dp),
-            onClick = { itemString ->
+            onClick = { itemNum ->
                 scope.launch {
                     snackbarHostState.currentSnackbarData?.dismiss()
-                    snackbarHostState.showSnackbar(message = itemString, duration = SnackbarDuration.Indefinite)
+                    val color = (if (itemNum % 2 == 0) Color.Green else Color.Red).copy(alpha = .3f)
+                    snackbarHostState.showSnackbar(message = "You clicked item $itemNum", color = color, duration = SnackbarDuration.Long)
                 }
             }
         )
@@ -64,7 +66,7 @@ fun TopBar() {
 fun ColumnContent(
     innerPadding: PaddingValues = PaddingValues(),
     onScroll: () -> Unit,
-    onClick: (String) -> Unit
+    onClick: (Int) -> Unit
 ) {
     val listState = rememberLazyListState()
     var firstVisibleItemRemembered by remember {
@@ -86,7 +88,7 @@ fun ColumnContent(
             Text(modifier = Modifier
                 .fillMaxWidth()
                 .clickable {
-                    onClick("You clicked item $num")
+                    onClick(num)
                 }, text = "Content $num")
         }
    }
@@ -107,34 +109,14 @@ fun BottomBar() {
 }
 
 @Composable
-fun BleSnackbar(message: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Surface(
-            color = Color.Green,
-            shape = RoundedCornerShape(50),
-            elevation = 6.dp
-        ) {
-            Row(modifier = Modifier.padding(12.dp)) {
-                Text(text = message)
-            }
-        }
-    }
-}
-
-@Composable
 fun CustomLayout(
     top: @Composable () -> Unit,
     bottom: @Composable () -> Unit,
-    snackbarState: SnackbarHostState,
+    snackbarState: BleSnackbarHostState = remember { BleSnackbarHostState() },
     content: @Composable () -> Unit
 ) {
-    val snackbar: @Composable (SnackbarData) -> Unit = { BleSnackbar(message = it.message) }
-
-    val snackbarHost = @Composable { SnackbarHost(hostState = snackbarState, snackbar = snackbar) }
+    val snackbar: @Composable (BleSnackbarData) -> Unit = { BleSnackbar(it) }
+    val snackbarHost = @Composable { BleSnackbarHost(hostState = snackbarState, snackbar = snackbar) }
 
     SubcomposeLayout { constraints ->
         val layoutHeight = constraints.maxHeight
@@ -186,14 +168,5 @@ enum class SlotsEnum {Top, Bottom, Content, Snackbar}
 fun ScreenTwoPreview() {
     BLEPlayTheme {
         ScreenTwo()
-    }
-}
-
-@Preview(showBackground = true, group = "Snackbar")
-@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, group = "Snackbar")
-@Composable
-fun BleSnackbarPreview() {
-    BLEPlayTheme {
-        BleSnackbar("This is a test message")
     }
 }
