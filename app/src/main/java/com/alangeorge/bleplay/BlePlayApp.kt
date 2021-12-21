@@ -2,12 +2,8 @@ package com.alangeorge.bleplay
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.Scaffold
-import androidx.compose.material.Snackbar
-import androidx.compose.material.SnackbarHost
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -57,7 +53,7 @@ fun BlePlayApp() {
                         hostState = it,
                         modifier = Modifier.systemBarsPadding(),
                         snackbar = { snackbarData ->
-                            Snackbar(snackbarData)
+                            CenteredTextSnackbar(snackbarData)
                         }
                     )
                 },

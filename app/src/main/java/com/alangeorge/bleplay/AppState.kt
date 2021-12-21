@@ -49,6 +49,7 @@ class AppState(
     context: Context
 ) {
     val snackbarMessagePipeline = EntryPoints.get(context, SnackbarMessagePipelineEntryPoint::class.java).getSnackbarMessagePipeline()
+
     val bottomBarTabs = listOf(
             BottomBarScreens.ScreenOne,
             BottomBarScreens.ScreenTwo,

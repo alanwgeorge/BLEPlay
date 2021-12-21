@@ -1,10 +1,7 @@
 package com.alangeorge.bleplay.ui
 
 import android.content.res.Configuration
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.*
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
@@ -12,7 +9,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.liveRegion
@@ -27,11 +23,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import timber.log.Timber
 import kotlin.coroutines.resume
 
 @Composable
-fun BleSnackbar(snackbarData: BleSnackbarData) {
+fun CenteredColorSnackbar(snackbarData: BleSnackbarData) {
     Row(
         modifier = Modifier
             .fillMaxWidth(),
@@ -45,6 +40,22 @@ fun BleSnackbar(snackbarData: BleSnackbarData) {
             Row(modifier = Modifier.padding(12.dp)) {
                 Text(text = snackbarData.message)
             }
+        }
+    }
+}
+
+@Composable
+fun CenteredTextSnackbar(snackbarData: SnackbarData) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp), horizontalArrangement = Arrangement.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colors.secondary
+        ) {
+            Text(modifier = Modifier.padding(16.dp), text = snackbarData.message)
         }
     }
 }
@@ -90,7 +101,7 @@ interface BleSnackbarData {
 fun BleSnackbarHost(
     hostState: BleSnackbarHostState,
     modifier: Modifier = Modifier,
-    snackbar: @Composable (BleSnackbarData) -> Unit = { BleSnackbar(it) }
+    snackbar: @Composable (BleSnackbarData) -> Unit = { CenteredColorSnackbar(it) }
 ) {
     val currentSnackbarData = hostState.currentSnackbarData
 
@@ -121,7 +132,7 @@ fun BleSnackbarPreview(
     @PreviewParameter(BleSnackbarDataProvider::class) snackbarData: BleSnackbarData
 ) {
     BLEPlayTheme {
-        BleSnackbar(snackbarData)
+        CenteredColorSnackbar(snackbarData)
     }
 }
 
