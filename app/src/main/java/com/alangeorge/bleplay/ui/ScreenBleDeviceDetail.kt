@@ -16,6 +16,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -24,20 +25,22 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
-import com.alangeorge.bleplay.viewmodel.BleBondState
-import com.alangeorge.bleplay.viewmodel.DeviceData
-import com.alangeorge.bleplay.viewmodel.ScanData
-import com.alangeorge.bleplay.viewmodel.printProperties
+import com.alangeorge.bleplay.viewmodel.*
 import timber.log.Timber
 import java.util.*
+import kotlin.random.Random
 
+@ExperimentalComposeUiApi
 @Composable
 fun ScreenBleDeviceDetail(
     scanData: ScanData,
+    gattStatusAndState: GattStatusAndState?,
     discoveredServices: List<BluetoothGattService>,
     mtu: Int?,
     heartRate: Int?,
     batteryLevel: Int?,
+    temperature: String?,
+    temperatureHistoric: List<Float>?,
     bondOnClick: () -> Unit,
     connectOnClick: () -> Unit,
     isConnecting: Boolean,
@@ -57,6 +60,10 @@ fun ScreenBleDeviceDetail(
                     Text(text = "battery: $it%")
                 }
             }
+            gattStatusAndState?.let {
+                Text(text = "Gatt Status: ${it.status}")
+                Text(text = "Gatt State: ${it.state}")
+            }
             if (deviceData.name != null) Text(text = "name : ${deviceData.name}")
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "signal strength : $rssi")
@@ -67,14 +74,24 @@ fun ScreenBleDeviceDetail(
             }
             Text(text = "isConnectable : $isConnectable")
             Text(text = "bond state : ${deviceData.bondState}")
-            BondButton(scanData = scanData, bondOnClick = bondOnClick, onBondStateChange = onBondStateChange)
-            Text(text = "service ids: ${scanData.serviceIds}")
-            ConnectButton(isConnected = isConnected, isConnecting = isConnecting, onClick = connectOnClick)
-            heartRate?.let { Text(text = "Heart Rate: $it") }
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(discoveredServices) { service ->
-                    BleServiceItem(bleService = service)
-                }
+        }
+        BondButton(scanData = scanData, bondOnClick = bondOnClick, onBondStateChange = onBondStateChange)
+        Text(text = "service ids: ${scanData.serviceIds}")
+        ConnectButton(isConnected = isConnected, isConnecting = isConnecting, onClick = connectOnClick)
+        heartRate?.let { Text(text = "Heart Rate: $it") }
+        temperature?.let { Text(text = "CPU temperature: $temperature")}
+        temperatureHistoric?.let { rawList ->
+            if (rawList.size > 2) {
+                val max = rawList.maxByOrNull { it } ?: 100f
+                val min = rawList.minByOrNull { it } ?: 0f
+                val diff = max - min
+                val points = rawList.map { (it - min) / diff }
+                Graph(modifier = Modifier.fillMaxWidth().height(150.dp), points = points, avgLine = false)
+            }
+        }
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(discoveredServices) { service ->
+                BleServiceItem(bleService = service)
             }
         }
     }
@@ -198,10 +215,15 @@ fun BleServiceItemPreview(
     @PreviewParameter(ScreenBleDeviceDetailDataProvider::class) data: DeviceDetail
 ) {
     BLEPlayTheme {
-        BleServiceItem(bleService = data.discoveredServices.first())
+        if (data.discoveredServices.isNotEmpty()) {
+            BleServiceItem(bleService = data.discoveredServices.first())
+        } else {
+            Text(text = "no discovered services")
+        }
     }
 }
 
+@ExperimentalComposeUiApi
 @Preview(showBackground = true, group = "ScreenBleDeviceDetail")
 @Composable
 fun ScreenBleDeviceDetailPreview(
@@ -211,10 +233,13 @@ fun ScreenBleDeviceDetailPreview(
         BLEPlayTheme {
             ScreenBleDeviceDetail(
                 scanData = scanData,
+                gattStatusAndState = gattStatusAndState,
                 mtu = mtu,
                 discoveredServices = discoveredServices,
                 batteryLevel = batteryLevel,
                 heartRate = heartRate,
+                temperature = temperature,
+                temperatureHistoric = temperatureHistoric,
                 bondOnClick = {},
                 connectOnClick = {},
                 isConnected = isConnected,
@@ -230,7 +255,10 @@ data class DeviceDetail(
     val discoveredServices: List<BluetoothGattService>,
     val mtu: Int? = null,
     val heartRate: Int? = null,
+    val temperature: String? = null,
+    val temperatureHistoric: List<Float>? = null,
     val batteryLevel: Int? = null,
+    val gattStatusAndState: GattStatusAndState? = null,
     val isConnecting: Boolean,
     val isConnected: Boolean
 )
@@ -287,7 +315,7 @@ class ScreenBleDeviceDetailDataProvider : PreviewParameterProvider<DeviceDetail>
         val none = emptyList<BluetoothGattService>()
     }
 
-    override val values =  sequenceOf<DeviceDetail>(
+    override val values =  sequenceOf(
         DeviceDetail(
             scanData = ScanDatas.connectable,
             discoveredServices = DiscoveredServices.none,
@@ -302,12 +330,26 @@ class ScreenBleDeviceDetailDataProvider : PreviewParameterProvider<DeviceDetail>
         ),
         DeviceDetail(
             scanData = ScanDatas.connectable,
+            gattStatusAndState = GattStatusAndState(
+                BluetoothGatt.GATT_SUCCESS.gattStatusDescription,
+                BluetoothProfile.STATE_CONNECTED.gattStateDescription
+            ),
             discoveredServices = DiscoveredServices.default,
             isConnecting = false,
             isConnected = true,
             mtu = 134,
             heartRate = 150,
-            batteryLevel = 45
+            batteryLevel = 45,
+            temperature = "103.2 F",
+            temperatureHistoric = generateSomeGraphPoints(50, 98.2f, 105.4f, .3f)
         )
     )
+
+    fun generateSomeGraphPoints(number: Int = 50, min: Float, max: Float, variance: Float) =
+        (1..number).runningFold(Random.nextDouble(min.toDouble(), max.toDouble())) { previous, _ ->
+            val limitLow = (previous - variance).coerceIn(min.toDouble(), max.toDouble())
+            val limitHigh = (previous + variance).coerceIn(min.toDouble(), max.toDouble())
+
+            Random.nextDouble(limitLow, limitHigh)
+        }.map(Double::toFloat)
 }

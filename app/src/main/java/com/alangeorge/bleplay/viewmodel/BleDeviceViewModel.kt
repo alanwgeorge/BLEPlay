@@ -3,21 +3,21 @@ package com.alangeorge.bleplay.viewmodel
 import android.app.Application
 import android.bluetooth.*
 import android.bluetooth.le.ScanResult
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.ParcelUuid
-import android.os.PowerManager
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import arrow.core.right
 import com.alangeorge.bleplay.common.Pipeline
+import com.alangeorge.bleplay.common.pipe
 import com.alangeorge.bleplay.common.toHexString
 import com.alangeorge.bleplay.model.SnackbarMessage
 import com.alangeorge.bleplay.repository.BleRepository
 import com.alangeorge.bleplay.ui.DEVICE_ADDRESS_ARG_NAME
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -32,10 +32,24 @@ class BleDeviceViewModel @Inject constructor(
         savedStateHandle: SavedStateHandle,
         val application: Application
 ) : ViewModel() {
-    val scanResult = repository.scanResults[savedStateHandle.get(DEVICE_ADDRESS_ARG_NAME)]
+    private val scanResult = repository.scanResults[savedStateHandle.get(DEVICE_ADDRESS_ARG_NAME)]
 
     private val connectedGatts = mutableMapOf<String, BluetoothGatt>()
     private val gattResultFlow = MutableSharedFlow<GattCallbackResult>()
+    private val gattCommandFlow = MutableSharedFlow<GattCommand>()
+
+    private val gattResultCommandZip = gattResultFlow.zip(gattCommandFlow) { result, command ->
+        Timber.d("zipping $result and $command")
+        with(result) {
+            when (command) {
+                is GattCommand.DiscoverServices -> gatt.discoverServices()
+                is GattCommand.RequestMtu -> gatt.requestMtu(gatt.GATT_MAX_MTU_SIZE)
+                is GattCommand.StartNotifications -> startNotifications(gatt, command.serviceUuid, command.characteristicUuid)
+                is GattCommand.ReadCharacteristic -> readCharacteristic(gatt, command.serviceUuid, command.characteristicUuid)
+            }
+        }
+    }
+
     val discoveredServiceFlow: Flow<List<BluetoothGattService>> = gattResultFlow
         .filterIsInstance<GattCallbackResult.ServicesDiscovered>()
         .map {
@@ -46,6 +60,12 @@ class BleDeviceViewModel @Inject constructor(
         .map {
             it.mtu
         }
+
+    val gattStatusAndStateFlow = gattResultFlow
+            .filterIsInstance<GattCallbackResult.ConnectionStateChanged>()
+            .map {
+                GattStatusAndState(it.status.gattStatusDescription, it.newState.gattStateDescription)
+            }
 
     private val _connectedStatusFlow = MutableStateFlow(false)
     val connectedStatusFlow = _connectedStatusFlow.asStateFlow()
@@ -60,6 +80,13 @@ class BleDeviceViewModel @Inject constructor(
 
     private val _heartRateFlow = MutableStateFlow(-1)
     val heartRateFlow = _heartRateFlow.asStateFlow()
+
+    private val _temperatureFlow = MutableStateFlow<String?>(null)
+    val temperatureFlow = _temperatureFlow.asStateFlow()
+
+    private val _temperatureHistoricFlow = MutableStateFlow<List<Float>>(emptyList())
+    val temperatureHistoricFlow = _temperatureHistoricFlow.asStateFlow()
+
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
@@ -106,10 +133,7 @@ class BleDeviceViewModel @Inject constructor(
             Timber.d("onCharacteristicRead: $status ${characteristic.uuid}")
             when (status) {
                 BluetoothGatt.GATT_SUCCESS -> {
-                    when(characteristic.uuid) {
-                        characteristicUuid[CHARACTERISTIC_NAME_BATTERY_LEVEL] -> handleBatteryLevel(characteristic)
-                        else -> Timber.d("unhandled characteristic: ${characteristic.uuid} ${characteristic.value?.toHexString()}")
-                    }
+                    onCharacteristicChanged(gatt, characteristic)
                 }
                 BluetoothGatt.GATT_READ_NOT_PERMITTED -> {
                     viewModelScope.launch { snackbarMessages.produceEvent(SnackbarMessage("read not permitted for characteristic: ${characteristic.uuid}".right())) }
@@ -117,12 +141,8 @@ class BleDeviceViewModel @Inject constructor(
             }
         }
 
-        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            when (characteristic.uuid) {
-                characteristicUuid[CHARACTERISTIC_NAME_HEART_RATE] -> handleHeartReteChange(characteristic)
-                characteristicUuid[CHARACTERISTIC_NAME_BATTERY_LEVEL] -> handleBatteryLevel(characteristic)
-            }
-        }
+        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) =
+            characteristic pipe (uuidToHandlerMap[characteristic.uuid] ?: ::handleUnknown)
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             viewModelScope.launch {
@@ -137,6 +157,12 @@ class BleDeviceViewModel @Inject constructor(
         }
     }
 
+    private val uuidToHandlerMap = mapOf(
+        KnownServices.HeartRate.characteristics?.get(0)?.uuid to ::handleHeartRateChange,
+        KnownServices.BatteryLevel.characteristics?.get(0)?.uuid to ::handleBatteryLevel,
+        KnownServices.RaspberryPiTemperature.characteristics?.get(0)?.uuid to ::handleTemperature
+    )
+
     private fun handleBatteryLevel(characteristic: BluetoothGattCharacteristic) {
         characteristic
             .value
@@ -147,10 +173,9 @@ class BleDeviceViewModel @Inject constructor(
                 Timber.d("battery level: $it")
                 viewModelScope.launch { _batteryLevelFlow.emit(it) }
             }
-
     }
 
-    private fun handleHeartReteChange(characteristic: BluetoothGattCharacteristic) {
+    private fun handleHeartRateChange(characteristic: BluetoothGattCharacteristic) {
          characteristic.value?.getOrNull(0)?.let { flags -> // first byte are the flags
             val bitSet = BitSet.valueOf(byteArrayOf(flags))
 
@@ -168,6 +193,27 @@ class BleDeviceViewModel @Inject constructor(
         }
     }
 
+    private fun handleTemperature(characteristic: BluetoothGattCharacteristic) {
+        characteristic.value?.let {
+            val tempAsString = String(it)
+            Timber.d("temperature : $tempAsString")
+            viewModelScope.launch {
+                _temperatureFlow.emit(tempAsString)
+
+                // "103.4 F" -> 103.4f
+                tempAsString.split(" ").firstOrNull()?.toFloatOrNull()?.let { tempAsFloat ->
+                    _temperatureHistoricFlow.emit(
+                        _temperatureHistoricFlow.value.takeLast(49) + tempAsFloat
+                    )
+                }
+            }
+        }
+    }
+
+    private fun handleUnknown(characteristic: BluetoothGattCharacteristic) {
+        Timber.d("unhandled characteristic: ${characteristic.uuid} ${characteristic.value?.toHexString()}")
+    }
+
     private val connectionStateChanged: suspend (GattCallbackResult.ConnectionStateChanged) -> Unit = {
         val (deviceAddress, gatt, status, newState) = it
 
@@ -177,11 +223,11 @@ class BleDeviceViewModel @Inject constructor(
         if (status == BluetoothGatt.GATT_SUCCESS) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    Timber.w("onConnectionStateChange: connected to $deviceAddress")
+                    Timber.d("onConnectionStateChange: connected to $deviceAddress")
                     _connectedStatusFlow.emit(true)
                     connectedGatts[gatt.device.address] = gatt
-                    gatt.discoverServices()
-
+                    gattCommandFlow.emit(GattCommand.DiscoverServices)
+                    gattCommandFlow.emit(GattCommand.RequestMtu)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     gatt.close()
@@ -189,15 +235,6 @@ class BleDeviceViewModel @Inject constructor(
                     _connectedStatusFlow.emit(false)
                     snackbarMessages.produceEvent(SnackbarMessage("device disconnected: ${gatt.device.address}".right()))
                 }
-            }
-
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Timber.w("onConnectionStateChange: connected to $deviceAddress")
-                gatt.discoverServices()
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Timber.e("onConnectionStateChange: disconnected from $deviceAddress")
-                gatt.close()
-                snackbarMessages.produceEvent(SnackbarMessage("device disconnected: ${gatt.device.address}".right()))
             }
         } else {
             Timber.e("onConnectionStateChange: status $status encountered for $deviceAddress!")
@@ -209,13 +246,13 @@ class BleDeviceViewModel @Inject constructor(
     private val servicesDiscovered: suspend (GattCallbackResult.ServicesDiscovered) -> Unit = {
         val (gatt, status) = it
 
-        _scanResultsFlow.emit(_scanResultsFlow.value?.copy(deviceData = gatt.device.asDeviceData))
+        val deviceData = gatt.device.asDeviceData.copy(services = gatt.serviceList)
+        _scanResultsFlow.emit(_scanResultsFlow.value?.copy(deviceData = deviceData))
 
         with(gatt) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Timber.w("Discovered ${services.size} services for ${device.address}.")
+                Timber.w("Discovered ${gatt.serviceList.size} services for ${device.address}.")
                 printGattTable()
-                gatt.requestMtu(GATT_MAX_MTU_SIZE)
             } else {
                 Timber.e("Service discovery failed due to status $status")
                 close()
@@ -224,28 +261,38 @@ class BleDeviceViewModel @Inject constructor(
         }
     }
 
-    private fun readCharacteristic(gatt: BluetoothGatt, serviceName: String, characteristicName: String) {
+    private fun readCharacteristic(gatt: BluetoothGatt, serviceUuid: UUID, characteristicUuid: UUID) {
+        val serviceName = KnownServices[serviceUuid]?.fold({ null }, { it.name }) ?: "unknown service"
+        val characteristicName = KnownServices[characteristicUuid]?.fold({ it.name }, { null }) ?: "unknown characteristic"
+        Timber.d("readCharacteristic: gatt = [${gatt}], serviceUuid = [${serviceUuid}], characteristicUuid = [${characteristicUuid}]")
+
         gatt
-            .getService(serviceUuids[serviceName])
-            ?.getCharacteristic(characteristicUuid[characteristicName])
+            .getService(serviceUuid)
+            ?.getCharacteristic(characteristicUuid)
             ?.let {
                 if (it.isReadable()) {
                     gatt.readCharacteristic(it)
+                } else {
+                    Timber.e("characteristic in not readable: $serviceName $characteristicName")
                 }
-            }
+            } ?: Timber.d("failed to look up service or characteristic UUID $serviceName $characteristicName")
     }
 
-    private fun startNotifications(gatt: BluetoothGatt, serviceName: String, characteristicName: String) {
+    private fun startNotifications(gatt: BluetoothGatt, serviceUuid: UUID, characteristicUuid: UUID) {
+        val serviceName = KnownServices[serviceUuid]?.fold({ null }, { it.name }) ?: "unknown service"
+        val characteristicName = KnownServices[characteristicUuid]?.fold({ it.name }, { null }) ?: "unknown characteristic"
+        Timber.d("startNotifications: gatt = [${gatt}], serviceUuid = [${serviceUuid}], characteristicUuid = [${characteristicUuid}]")
+
         gatt
-            .getService(serviceUuids[serviceName])
-            ?.getCharacteristic(characteristicUuid[characteristicName])
-            ?.let { heartRateChar ->
-                if (heartRateChar.isNotifiable()) {
-                    heartRateChar.getDescriptor(CCC_DESCRIPTOR_UUID)?.let { cccDescriptor ->
-                        if (gatt.setCharacteristicNotification(heartRateChar, true)) {
+            .getService(serviceUuid)
+            ?.getCharacteristic(characteristicUuid)
+            ?.let { characteristic ->
+                if (characteristic.isNotifiable()) {
+                    characteristic.getDescriptor(CCC_DESCRIPTOR_UUID)?.let { cccDescriptor ->
+                        if (gatt.setCharacteristicNotification(characteristic, true)) {
                             cccDescriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                             if (!gatt.writeDescriptor(cccDescriptor)) {
-                                Timber.d("writeDescriptor failed: $serviceName $characteristicName")
+                                Timber.e("writeDescriptor failed: $serviceName $characteristicName")
                             }
                         } else {
                             Timber.d("startNotifications() $serviceName $characteristicName failed")
@@ -257,6 +304,36 @@ class BleDeviceViewModel @Inject constructor(
             } ?: Timber.d("failed to look up service or characteristic UUID $serviceName $characteristicName")
     }
 
+    private val launchKnownServices: suspend CoroutineScope.() -> Unit = {
+        scanResultsFlow.filterNotNull().collect { scanData ->
+            KnownServices.asList()
+                .filter { knownService ->
+                    scanData.deviceData.services.map(Service::uuid).contains(knownService.uuid)
+                }.forEach { service ->
+                    Timber.d("known service found: $service")
+                    service.characteristics?.getOrNull(0)?.let { characteristic ->
+                        gattCommandFlow.emit(
+                            GattCommand.StartNotifications(
+                                serviceUuid = service.uuid,
+                                characteristicUuid = characteristic.uuid
+                            )
+                        )
+
+                        when(service) {
+                            KnownServices.BatteryLevel, KnownServices.RaspberryPiTemperature -> {
+                                gattCommandFlow.emit(
+                                    GattCommand.ReadCharacteristic(
+                                        serviceUuid = service.uuid,
+                                        characteristicUuid = characteristic.uuid
+                                    )
+                                )
+                            }
+                        }
+                    } ?: Timber.d("unable to startNotifications: characteristic not found")
+                }
+        }
+    }
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             gattResultFlow.filterIsInstance<GattCallbackResult.ConnectionStateChanged>()
@@ -266,24 +343,10 @@ class BleDeviceViewModel @Inject constructor(
             gattResultFlow.filterIsInstance<GattCallbackResult.ServicesDiscovered>()
                 .collect(servicesDiscovered)
         }
-        viewModelScope.launch {
-            gattResultFlow
-                .filterIsInstance<GattCallbackResult.MtuChanged>()
-                .first()
-                .run {
-                    // gatt reference before mtu change seem to no longer work after mtu update
-                    connectedGatts[gatt.device.address] = gatt
-                    startNotifications(gatt, SERVICE_NAME_BATTERY_LEVEL, CHARACTERISTIC_NAME_BATTERY_LEVEL)
-                }
-        }
-        viewModelScope.launch {
-            gattResultFlow
-                .filterIsInstance<GattCallbackResult.DescriptorWrite>()
-                .first()
-                .run {
-                    connectedGatts[gatt.device.address] = gatt
-                    startNotifications(gatt, SERVICE_NAME_HEART_RATE,CHARACTERISTIC_NAME_HEART_RATE)
-                }
+        viewModelScope.launch(context = Dispatchers.IO, block = launchKnownServices)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            gattResultCommandZip.collect()
         }
     }
 
@@ -341,6 +404,7 @@ data class ScanData(
 data class DeviceData(
     val address: String,
     val name: String?,
+    val services: List<Service> = emptyList(),
     val bondState: BleBondState,
 )
 
@@ -349,6 +413,13 @@ enum class BleBondState {
     BONDING,
     BONDED,
     UNKNOWN;
+}
+
+sealed class GattCommand {
+    object DiscoverServices : GattCommand()
+    object RequestMtu : GattCommand()
+    data class StartNotifications(val serviceUuid: UUID, val characteristicUuid: UUID) : GattCommand()
+    data class ReadCharacteristic(val serviceUuid: UUID, val characteristicUuid: UUID) : GattCommand()
 }
 
 private val BluetoothGatt.GATT_MAX_MTU_SIZE
@@ -383,28 +454,59 @@ val BluetoothDevice.asDeviceData
         bondState = bondState.bondState
     )
 
-sealed class GattCallbackResult {
-    data class ConnectionStateChanged(
+@Suppress("unused")
+sealed class GattCallbackResult(val gatt: BluetoothGatt) {
+    class ConnectionStateChanged(
         val address: String,
-        val gatt: BluetoothGatt,
+        gatt: BluetoothGatt,
         val status: Int,
         val newState: Int
-    ) : GattCallbackResult()
+    ) : GattCallbackResult(gatt) {
+        operator fun component1() = address
+        operator fun component2() = gatt
+        operator fun component3() = status
+        operator fun component4() = newState
+    }
 
-    data class ServicesDiscovered(
-        val gatt: BluetoothGatt, val status: Int
-    ) : GattCallbackResult()
+    class ServicesDiscovered(
+        gatt: BluetoothGatt,
+        val status: Int
+    ) : GattCallbackResult(gatt) {
+        operator fun component1() = gatt
+        operator fun component2() = status
+    }
 
-    data class MtuChanged(
-        val gatt: BluetoothGatt, val mtu: Int, val status: Int
-    ) : GattCallbackResult()
+    class MtuChanged(
+        gatt: BluetoothGatt,
+        val mtu: Int,
+        val status: Int
+    ) : GattCallbackResult(gatt) {
+        operator fun component1() = gatt
+        operator fun component2() = mtu
+        operator fun component3() = status
+    }
 
-    data class DescriptorWrite(
-        val gatt: BluetoothGatt,
+    class DescriptorWrite(
+        gatt: BluetoothGatt,
         val descriptor: BluetoothGattDescriptor,
         val status: Int
-    ) : GattCallbackResult()
+    ) : GattCallbackResult(gatt) {
+        operator fun component1() = gatt
+        operator fun component2() = descriptor
+        operator fun component3() = status
+    }
 }
+
+val BluetoothGatt.serviceList
+    get() = services.map { service ->
+        Service(
+            uuid = service.uuid
+        ).apply {
+            characteristics = service.characteristics.map { characteristic ->
+                Characteristic(uuid = characteristic.uuid)
+            }
+        }
+    }
 
 fun BluetoothGatt.printGattTable() {
     if (services.isEmpty()) {
@@ -472,3 +574,31 @@ fun BluetoothGattDescriptor.isWritable(): Boolean =
 
 fun BluetoothGattDescriptor.containsPermission(permission: Int): Boolean =
     permissions and permission != 0
+
+val Int.gattStatusDescription
+    get() = when(this) {
+        BluetoothGatt.GATT_SUCCESS -> "GATT_SUCCESS"
+        BluetoothGatt.GATT_READ_NOT_PERMITTED -> "GATT_READ_NOT_PERMITTED"
+        BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> "GATT_WRITE_NOT_PERMITTED"
+        BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION -> "GATT_INSUFFICIENT_AUTHENTICATION"
+        BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED -> "GATT_REQUEST_NOT_SUPPORTED"
+        BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION -> "GATT_INSUFFICIENT_ENCRYPTION"
+        BluetoothGatt.GATT_INVALID_OFFSET -> "GATT_INVALID_OFFSET"
+        BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH -> "GATT_INVALID_ATTRIBUTE_LENGTH"
+        BluetoothGatt.GATT_CONNECTION_CONGESTED -> "GATT_CONNECTION_CONGESTED"
+        BluetoothGatt.GATT_FAILURE -> "GATT_FAILURE"
+        else -> "Unknown status: $this"
+    }
+val Int.gattStateDescription
+    get() = when(this) {
+        BluetoothProfile.STATE_DISCONNECTED -> "STATE_DISCONNECTED"
+        BluetoothProfile.STATE_CONNECTING -> "STATE_CONNECTING"
+        BluetoothProfile.STATE_CONNECTED -> "STATE_CONNECTED"
+        BluetoothProfile.STATE_DISCONNECTING -> "STATE_DISCONNECTING"
+        else -> "Unknown state: $this"
+    }
+
+data class GattStatusAndState(
+    val status: String,
+    val state: String
+)

@@ -63,8 +63,8 @@ fun BlePlayApp() {
                     navController = appState.navController,
                     startDestination = DEVICE_ROUTE_BASE,
                     modifier = Modifier
-                        .padding(innerPaddingModifier)
-                        .fillMaxSize()
+                            .padding(innerPaddingModifier)
+                            .fillMaxSize()
                 ) {
                     navGraph(appState = appState)
                 }
@@ -145,18 +145,24 @@ fun NavGraphBuilder.navGraph(modifier: Modifier = Modifier, appState: AppState) 
             val mtu by deviceViewModel.mtuChangedFlow.collectAsState(initial = null)
             val batteryLevel by deviceViewModel.batteryLevelFlow.collectAsState()
             val heartRate by deviceViewModel.heartRateFlow.collectAsState()
+            val temperature by deviceViewModel.temperatureFlow.collectAsState()
+            val temperatureHistoric by deviceViewModel.temperatureHistoricFlow.collectAsState()
             val isConnected by deviceViewModel.connectedStatusFlow.collectAsState()
             val isConnecting by deviceViewModel.isConnectingStatusFlow.collectAsState()
             val connectOnClick = remember { {
                 if (isConnected) deviceViewModel.disconnectGatts() else deviceViewModel.connectGatt()
             } }
+            val gattStatusAndState by deviceViewModel.gattStatusAndStateFlow.collectAsState(null)
 
             scanResults?.let { scanData ->
                 ScreenBleDeviceDetail(
                     scanData = scanData,
+                    gattStatusAndState = gattStatusAndState,
                     mtu = mtu,
                     heartRate = heartRate.takeIf { it > 0 },
                     batteryLevel = batteryLevel.takeIf { it > 0 },
+                    temperature = temperature,
+                    temperatureHistoric = temperatureHistoric,
                     discoveredServices = discoveredServices,
                     bondOnClick = deviceViewModel::bond,
                     isConnected = isConnected,
