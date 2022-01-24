@@ -1,5 +1,6 @@
 package com.alangeorge.bleplay.ui
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.TweenSpec
 import androidx.compose.animation.core.animateFloatAsState
@@ -106,7 +107,7 @@ enum class DropDownSheetSlots { Scrim, DropDown }
 class DropDownSheetState(
     initialValue: DropDownSheetValue = DropDownSheetValue.Hidden
 ) {
-    var dropDownHeight by mutableStateOf(200f)
+    var dropDownHeight by mutableStateOf(0f)
 
     var currentValue by mutableStateOf( initialValue )
         private set
@@ -208,6 +209,7 @@ fun DropDownSheetLayoutPreview() {
                 horizontalArrangement = Arrangement.Center
             ) {
                 Button(
+                    modifier = Modifier.width(75.dp),
                     onClick = {
                         with(dropDownSheetState) {
                             scope.launch {
@@ -219,7 +221,13 @@ fun DropDownSheetLayoutPreview() {
                         }
                     }
                 ) {
-                    Text(text = "Animate")
+                    Crossfade(targetState = dropDownSheetState.isVisible) { dropDownVisible ->
+                        if (dropDownVisible) {
+                            Text(text = "Close")
+                        } else {
+                            Text(text = "Open")
+                        }
+                    }
                 }
             }
             DropDownSheetLayout(
@@ -234,7 +242,8 @@ fun DropDownSheetLayoutPreview() {
                         }
                     }
                 },
-                sheetState = dropDownSheetState
+                sheetState = dropDownSheetState,
+                sheetElevation = 16.dp
             ) {
                 val listState = rememberLazyListState()
                 LazyColumn(
