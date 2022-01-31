@@ -29,7 +29,6 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
-import timber.log.Timber
 import kotlin.math.roundToInt
 
 @ExperimentalMaterialApi
@@ -267,15 +266,15 @@ private fun <T : Any> rememberSwipeableStateFor(
 @Preview(showBackground = true)
 @Composable
 fun ChoicePreview() {
-    var choice by remember {
-        mutableStateOf<Either<Left, Right>>(Left.left())
+    var isLeft by rememberSaveable {
+        mutableStateOf(true)
     }
 
     BLEPlayTheme {
         Choice(
-            choice = choice,
+            choice = if (isLeft) Left.left() else Right.right(),
             onChoiceChange = {
-                choice = it
+                isLeft = it.isLeft()
             },
             leftLabel = "Imperial Longish",
             rightLabel = "Metric",
