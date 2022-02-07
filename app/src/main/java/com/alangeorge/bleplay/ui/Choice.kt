@@ -6,10 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
@@ -29,6 +27,10 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.launch
+import timber.log.Timber
 import kotlin.math.roundToInt
 
 @ExperimentalMaterialApi
@@ -43,6 +45,8 @@ fun Choice(
     colors: ChoiceColors = ChoiceDefaults.colors(),
     contentPaddingValues: PaddingValues = ChoiceDefaults.contentPadding()
 ) {
+    val scope = rememberCoroutineScope()
+
     val swipeableState = rememberSwipeableStateFor(
         choice,
         onChoiceChange,
@@ -69,7 +73,7 @@ fun Choice(
         Text(
             modifier = modifier.padding(contentPaddingValues),
             text = leftLabel,
-            style = MaterialTheme.typography.button,
+            style = BLEPlayTheme.typography.button,
             color = colors.contentColor().value
         )
     }
@@ -77,7 +81,7 @@ fun Choice(
         Text(
             modifier = modifier.padding(contentPaddingValues),
             text = rightLabel,
-            style = MaterialTheme.typography.button,
+            style = BLEPlayTheme.typography.button,
             color = colors.contentColor().value
         )
     }
@@ -122,6 +126,8 @@ fun Choice(
         0 * density
     }.roundToInt()
 
+    val thumbOffset by swipeableState.offset
+
     SubcomposeLayout { constraints ->
         val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
 
@@ -142,7 +148,7 @@ fun Choice(
 
         val animationPathLength = leftWidth + gap
 
-        val thumbOffset by swipeableState.offset
+
 
         val thumbWidth = when {
             thumbOffset.roundToInt() == 0 -> leftWidth
@@ -153,7 +159,9 @@ fun Choice(
             else -> leftWidth
         }
 
-//        Timber.d("thumbOffset:$thumbOffset thumbOffset.roundToInt():${thumbOffset.roundToInt()} direction:${swipeableState.direction} fraction:${swipeableState.progress.fraction} thumbWidth:$thumbWidth")
+//        scope.launch {
+//            Timber.d("thumbOffset:$thumbOffset thumbOffset.roundToInt():${thumbOffset.roundToInt()} direction:${swipeableState.direction} fraction:${swipeableState.progress.fraction} leftWidth:$leftWidth rightWidth:$rightWidth thumbWidth:$thumbWidth")
+//        }
 
         val trackPlaceables = subcompose(slotId = ChoiceSlots.Track, content = { track((animationPathLength).toFloat()) }).map {
             it.measure(constraints = looseConstraints.copy(maxWidth = layoutWidth, minHeight = layoutHeight))
@@ -179,6 +187,15 @@ fun Choice(
         }
     }
 
+    LaunchedEffect(key1 = swipeableState) {
+        snapshotFlow { swipeableState.offset.value }
+            .onCompletion {
+                Timber.d("offset flow completion")
+            }
+            .collect {
+                Timber.d("offset flow: $it")
+            }
+    }
 }
 
 object Left
@@ -204,10 +221,10 @@ interface ChoiceColors {
 object ChoiceDefaults {
     @Composable
     fun colors(
-        trackColor: Color = MaterialTheme.colors.primary,
+        trackColor: Color = BLEPlayTheme.colors.primary,
         thumbAlpha: Float = 0.54f,
-        thumbColor: Color = MaterialTheme.colors.onPrimary.copy(alpha = thumbAlpha),
-        contentColor: Color = MaterialTheme.colors.onPrimary
+        thumbColor: Color = BLEPlayTheme.colors.onPrimary.copy(alpha = thumbAlpha),
+        contentColor: Color = BLEPlayTheme.colors.onPrimary
     ): ChoiceColors = DefaultChoiceColors(
         thumbColor = thumbColor,
         trackColor = trackColor,
@@ -267,17 +284,22 @@ private fun <T : Any> rememberSwipeableStateFor(
 @Composable
 fun ChoicePreview() {
     var isLeft by rememberSaveable {
-        mutableStateOf(true)
+        mutableStateOf(false)
     }
 
     BLEPlayTheme {
-        Choice(
-            choice = if (isLeft) Left.left() else Right.right(),
-            onChoiceChange = {
-                isLeft = it.isLeft()
-            },
-            leftLabel = "Imperial Longish",
-            rightLabel = "Metric",
-        )
+        Column(Modifier.fillMaxSize()) {
+            Spacer(modifier = Modifier.height(50.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                Choice(
+                    choice = if (isLeft) Left.left() else Right.right(),
+                    onChoiceChange = {
+                        isLeft = it.isLeft()
+                    },
+                    leftLabel = "Imperial Longish",
+                    rightLabel = "Metric",
+                )
+            }
+        }
     }
 }

@@ -1,10 +1,10 @@
 package com.alangeorge.bleplay.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme
-import androidx.compose.material.darkColors
-import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 
 private val DarkColorPalette = darkColors(
     primary = Purple200,
@@ -41,4 +41,34 @@ fun BLEPlayTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composabl
         shapes = Shapes,
         content = content
     )
+}
+
+object BLEPlayTheme {
+    /**
+     * Retrieves the current [Colors] at the call site's position in the hierarchy.
+     *
+     * @sample androidx.compose.material.samples.ThemeColorSample
+     */
+    val colors: Colors
+        @Composable
+        @ReadOnlyComposable
+        get() = MaterialTheme.colors
+
+    /**
+     * Retrieves the current [Typography] at the call site's position in the hierarchy.
+     *
+     * @sample androidx.compose.material.samples.ThemeTextStyleSample
+     */
+    val typography: Typography
+        @Composable
+        @ReadOnlyComposable
+        get() = MaterialTheme.typography
+
+    /**
+     * Retrieves the current [Shapes] at the call site's position in the hierarchy.
+     */
+    val shapes: Shapes
+        @Composable
+        @ReadOnlyComposable
+        get() = MaterialTheme.shapes
 }

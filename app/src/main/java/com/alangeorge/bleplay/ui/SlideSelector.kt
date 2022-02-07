@@ -1,41 +1,25 @@
 package com.alangeorge.bleplay.ui
 
-import android.content.res.Configuration.UI_MODE_NIGHT_YES
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.TweenSpec
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.DragScope
-import androidx.compose.foundation.gestures.DraggableState
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
-import androidx.compose.material.Slider
 import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.Stable
-import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.lerp
@@ -52,12 +36,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.lerp
+import androidx.compose.ui.window.Popup
 import com.alangeorge.bleplay.ui.theme.BLEPlayTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
@@ -877,21 +864,75 @@ private class MinimumTouchTargetModifier(val size: DpSize) : LayoutModifier {
     }
 }
 
+private val TriangleShape = GenericShape { size, _ ->
+    moveTo(size.width / 2f, 0f)
+    lineTo(size.width, size.height)
+    lineTo(0f, size.height)
+}
 
-
+@ExperimentalFoundationApi
 @ExperimentalMaterialApi
 @Preview(showBackground = true)
 @Composable
 fun BinarySliderPreview() {
     var position by remember { mutableStateOf<Boolean?>(null) }
+    var showToolTip by remember { mutableStateOf(true) }
+
     BLEPlayTheme {
-        Box(modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)) {
-            BinarySlider(
-                value = position,
-                onValueChange = { position = it }
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = rememberRipple(),
+                    onClickLabel = "Button action description",
+                    role = Role.Button,
+                    onClick = { },
+                    onLongClick = { showToolTip = true }
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            AnimatedVisibility(visible = showToolTip) {
+                Popup(
+                    alignment = Alignment.TopCenter,
+                    onDismissRequest = { showToolTip = false }
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colors.primary,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(8.dp),
+                            text = "Slide Left or Right",
+                            color = MaterialTheme.colors.onPrimary
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(width = 24.dp, height = 12.dp)
+                                .rotate(180f)
+                                .background(
+                                    color = MaterialTheme.colors.primary,
+                                    shape = TriangleShape
+                                )
+                        )
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .padding(16.dp)
+            ) {
+                BinarySlider(
+                    value = position,
+                    onValueChange = { position = it }
+                )
+            }
         }
     }
 }
